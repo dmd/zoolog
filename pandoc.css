@@ -1,0 +1,32 @@
+<meta charset="utf-8">
+<style>
+h1 {
+  font-size: 1em;
+  margin: 0;
+  white-space: nowrap;
+  color: #777;
+}
+h2 {
+  font-size: 0.8em;
+  margin: 0;
+  white-space: nowrap;
+  color: #ccc;
+}
+
+
+p {
+  display: inline;
+}
+
+p + p::before {
+  content: "\00a0\00b7\00a0"; 
+}
+
+body
+{
+        font-family: 'Georgia';
+}
+tr { vertical-align: top; }
+td { padding: 2px 5px; }
+</style>
+<table>

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+shopt -s extglob
+
+process_file_type() {
+    local file_type="$1"
+    
+    python3 -m quopri -d ${file_type}.txt | sponge ${file_type}.txt
+    pandoc -f markdown -t html ${file_type}.txt -o ${file_type}.html
+    sed 's,^<h1,</td></tr><tr><td><h1,;s,/h1>$,/h1></td><td>,' ${file_type}.html | sponge ${file_type}.html
+    cat pandoc.css ${file_type}.html | python3 dow.py | sponge ${file_type}.html
+    wkhtmltopdf -L 20  -R 20 -T 15 -B 15 --page-height 10in --page-width 8in ${file_type}.html ${file_type}.pdf
+}
+
+# Generate decade-specific files for 2013-2023
+find posts -name "201[3-9]-*J*" -o -name "202[0-3]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2013-2023.txt &
+find posts -name "201[3-9]-*" -o -name "202[0-3]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2013-2023.txt &
+
+# Generate decade-specific files for 2024-2034
+find posts -name "202[4-9]-*J*" -o -name "203[0-4]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2024-2034.txt &
+find posts -name "202[4-9]-*" -o -name "203[0-4]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2024-2034.txt &
+
+# Still generate the original combined files for backward compatibility
+awk 'FNR==1{print ""}1' posts/*J* > J.txt &
+awk 'FNR==1{print ""}1' posts/!(*AHNS*|*J*) > US.txt &
+wait
+
+# Process all file types
+process_file_type "US" &
+process_file_type "J" &
+process_file_type "US-2013-2023" &
+process_file_type "J-2013-2023" &
+process_file_type "US-2024-2034" &
+process_file_type "J-2024-2034" &
+wait
+
+# Generate decade books
+pdftk a_cover-2013-2023.pdf US-2013-2023.pdf a_unclej.pdf J-2013-2023.pdf a_ahns.pdf AHNS.pdf cat output book-2013-2023.pdf &
+pdftk a_cover-2024-2034.pdf US-2024-2034.pdf a_unclej.pdf J-2024-2034.pdf cat output book-2024-2034.pdf &
+
+# Generate original combined book for backward compatibility
+pdftk a_cover.pdf US.pdf a_unclej.pdf J.pdf a_ahns.pdf AHNS.pdf cat output book.pdf &
+
+./make_monthlies &
+wait

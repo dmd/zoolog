@@ -1,0 +1,7 @@
+*.pdf
+posts
+monthly
+*.txt
+*.html
+.DS_Store
+zoomail.ini

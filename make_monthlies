@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+outdir="monthly"
+mkdir -p "$outdir"
+rm -f "$outdir"/*.txt
+
+months=$(for f in posts/*.txt; do
+    # strip directory, grab first 7 chars of filename
+    fname=${f##*/}
+    echo "${fname:0:7}"
+done | sort -u)
+
+process_month() {
+    local m="$1"
+    files=( posts/${m}-*.txt )
+    sorted=( $(printf '%s\n' "${files[@]}" | sort) )
+    cat "${sorted[@]}" > "$outdir/${m}.txt"
+}
+
+for m in $months; do
+    process_month "$m" &
+done
+wait

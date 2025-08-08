@@ -5,3 +5,4 @@ monthly
 *.html
 .DS_Store
 zoomail.ini
+.claude

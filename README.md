@@ -28,8 +28,8 @@ Posts are categorized by filename patterns:
 - **Date range**: 2020-present
 - **Appears in**: J.pdf, 5-year J books based on date
 
-### US Category (Everything else)
-- **Pattern**: All other files (not containing "AHNS" or "J")
+### US Category (Main family entries)
+- **Pattern**: Files containing "-A-" or "-D-" in the filename
 - **Example**: `2023-12-12-A-2024-01-16.txt`
 - **Date range**: 2013-present
 - **Appears in**: US.pdf, 5-year US books based on date
@@ -40,14 +40,15 @@ Posts are categorized by filename patterns:
 Primary compilation script that generates all books.
 
 **Process**:
-1. Generates 5-year period text files for US (2013-2017, 2018-2022, 2023-2027)
-2. Generates 5-year period text files for J (2020-2024, 2025-2029)
-3. Generates single AHNS compilation (2015-2019)
-4. Generates combined category files for backward compatibility
-5. Processes all files through markdown→HTML→PDF pipeline
-6. Creates separate books for each category and time period using pdftk with year-specific covers
-7. Runs `make_monthlies` for monthly compilations
-8. Automatically cleans up intermediate 5-year period files
+1. Uses `create_period_book()` function to generate 5-year period text files:
+   - US books: 2013-2017, 2018-2022, 2023-2027 (files with -A- or -D-)
+   - J books: 2020-2024, 2025-2029 (files with J)
+   - AHNS book: 2015-2019 (files with AHNS)
+2. Generates combined category files (US.txt, J.txt, AHNS.txt)
+3. Processes all files through markdown→HTML→PDF pipeline using `process_file_type()`
+4. Creates separate books for each period using pdftk with year-specific covers
+5. Runs `make_monthlies` for monthly compilations (only -A- and -D- files)
+6. Automatically cleans up intermediate period files, keeping only combined files and final books
 
 **Output Books**:
 - US 5-year books: `book-US-2013-2017.pdf`, `book-US-2018-2022.pdf`, `book-US-2023-2027.pdf`
@@ -56,7 +57,7 @@ Primary compilation script that generates all books.
 - `book.pdf`: Complete combined book (legacy)
 
 ### `make_monthlies`
-Generates monthly compilation files in the `monthly/` directory.
+Generates monthly compilation files in the `monthly/` directory. Only processes files with `-A-` or `-D-` patterns (US category files).
 
 ## Processing Pipeline
 Each category goes through this pipeline via `process_file_type()`:
@@ -116,10 +117,8 @@ This will create:
 - J 5-year books (book-J-2020-2024.pdf, book-J-2025-2029.pdf)
 - AHNS single volume (book-AHNS.pdf)
 - Combined book (book.pdf) - legacy
-- Monthly compilations
+- Monthly compilations (only -A- and -D- files)
 - HTML and TXT versions of all categories
-
-Intermediate 5-year period files are automatically cleaned up after book generation.
 
 ### Clean all generated files
 `./make_clean`
@@ -127,8 +126,10 @@ Intermediate 5-year period files are automatically cleaned up after book generat
 Removes all generated .txt, .html, .pdf files and directories, leaving only source files and covers.
 
 ## Technical Notes
-- Uses bash extended globbing (`shopt -s extglob`)
-- Processes run in parallel using `&` and `wait`
-- File patterns use `find` with `grep` filtering for reliability
+- Uses bash extended globbing (`shopt -s extglob`) and strict error handling (`set -euo pipefail`)
+- Processes run in parallel using `&` and `wait` for performance
+- File filtering uses `find` with `-name` patterns and `-o` (or) logic
+- Year extraction via bash parameter expansion (`${file:6:4}`) from filename format `posts/YYYY-MM-DD-...`
+- Chronological order maintained through YYYY-MM-DD filename prefixes
 - Page dimensions: 8"×10" with specific margins for printing
 - CSS styling applied via `pandoc.css` and `dow.py` processing

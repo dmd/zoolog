@@ -48,6 +48,7 @@ create_period_book "AHNS" 2015 2019 &
 # Still generate the original combined files
 awk 'FNR==1{print ""}1' posts/*J* > J.txt &
 awk 'FNR==1{print ""}1' posts/!(*AHNS*|*J*) > US.txt &
+awk 'FNR==1{print ""}1' posts/*AHNS* > AHNS.txt &
 wait
 
 # Process all file types
@@ -82,9 +83,12 @@ wait
 # Clean up intermediate 5-year period files (keep only combined US, J, AHNS files)
 rm -f US-2013-2017.txt US-2018-2022.txt US-2023-2027.txt
 rm -f J-2020-2024.txt J-2025-2029.txt
+rm -f AHNS-2015-2019.txt
 rm -f US-2013-2017.html US-2018-2022.html US-2023-2027.html
 rm -f J-2020-2024.html J-2025-2029.html
+rm -f AHNS-2015-2019.html
 rm -f US-2013-2017.pdf US-2018-2022.pdf US-2023-2027.pdf
 rm -f J-2020-2024.pdf J-2025-2029.pdf
+rm -f AHNS-2015-2019.pdf
 
 echo "Books generated successfully."

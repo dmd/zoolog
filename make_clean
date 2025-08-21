@@ -26,4 +26,10 @@ rm -f book-2013-2023.pdf book-2024-2034.pdf
 # Remove monthly compilations
 rm -rf monthly/
 
+# Remove generated covers
+rm -f covers/a_cover.pdf covers/a_ahns.pdf covers/a_unclej.pdf
+rm -f covers/a_cover-US-2013-2017.pdf covers/a_cover-US-2018-2022.pdf covers/a_cover-US-2023-2027.pdf
+rm -f covers/a_cover-J-2020-2024.pdf covers/a_cover-J-2025-2029.pdf
+rm -f covers/a_cover-AHNS.pdf
+
 echo "Cleaned all generated files"

@@ -5,7 +5,7 @@ This system compiles family journal entries into organized books in HTML, TXT, a
 
 ## Directory Structure
 - `posts/` - Contains individual journal entries as .txt files, each with a header date line
-- `covers/` - LaTeX source files and PDF covers for all books
+- `covers/` - PDF covers for all books
 - `monthly/` - Monthly compilation files (YYYY-MM.txt format)
 - Individual category outputs: `AHNS.html`, `AHNS.pdf`, `AHNS.txt`, `J.html`, `J.pdf`, `J.txt`, `US.html`, `US.pdf`, `US.txt`
 - US 5-year books: `book-US-2013-2017.pdf`, `book-US-2018-2022.pdf`, `book-US-2023-2027.pdf`
@@ -40,15 +40,11 @@ Posts are categorized by filename patterns:
 Primary compilation script that generates all books.
 
 **Process**:
-1. Uses `create_period_book()` function to generate 5-year period text files:
-   - US books: 2013-2017, 2018-2022, 2023-2027 (files with -A- or -D-)
-   - J books: 2020-2024, 2025-2029 (files with J)
-   - AHNS book: 2015-2019 (files with AHNS)
-2. Generates combined category files (US.txt, J.txt, AHNS.txt)
-3. Processes all files through markdown→HTML→PDF pipeline using `process_file_type()`
-4. Creates separate books for each period using pdftk with year-specific covers
-5. Runs `make_monthlies` for monthly compilations (only -A- and -D- files)
-6. Automatically cleans up intermediate period files, keeping only combined files and final books
+1. Generate text files and covers
+2. Process files through markdown→HTML→PDF pipeline  
+3. Assemble final books with pdftk
+4. Generate monthly compilations
+5. Clean up intermediate files
 
 **Output Books**:
 - US 5-year books: `book-US-2013-2017.pdf`, `book-US-2018-2022.pdf`, `book-US-2023-2027.pdf`
@@ -66,27 +62,27 @@ Each category goes through this pipeline via `process_file_type()`:
 2. **Convert**: `pandoc -f markdown -t html` - Markdown to HTML
 3. **Format**: `sed` commands - Format for table layout
 4. **Style**: Combine with `pandoc.css` and process with `dow.py` (determines day of week)
-5. **PDF**: `wkhtmltopdf` - Generate PDF with specific page dimensions (8"×10")
+5. **PDF**: `generate_content_pdf.py` - Create PDF (8"×10")
 
 ## Cover System
-LaTeX-based covers stored in `covers/` directory:
+Generated covers stored in `covers/` directory:
 
 **Main covers:**
-- `a_cover.tex` → `a_cover.pdf` - Generic cover (title: "Outer Dibblestan")
-- `a_ahns.tex` → `a_ahns.pdf` - AHNS section divider
-- `a_unclej.tex` → `a_unclej.pdf` - Uncle J section divider
+- `a_cover.pdf` - Generic cover (title: "Outer Dibblestan")
+- `a_ahns.pdf` - AHNS section divider
+- `a_unclej.pdf` - Uncle J section divider
 
 **Year-specific covers:**
-- `a_cover-US-2013-2017.tex` → `a_cover-US-2013-2017.pdf` - "Outer Dibblestan" with "2013 - 2017"
-- `a_cover-US-2018-2022.tex` → `a_cover-US-2018-2022.pdf` - "Outer Dibblestan" with "2018 - 2022"
-- `a_cover-US-2023-2027.tex` → `a_cover-US-2023-2027.pdf` - "Outer Dibblestan" with "2023 - 2027"
-- `a_cover-J-2020-2024.tex` → `a_cover-J-2020-2024.pdf` - "Uncle J" with "2020 - 2024"
-- `a_cover-J-2025-2029.tex` → `a_cover-J-2025-2029.pdf` - "Uncle J" with "2025 - 2029"
-- `a_cover-AHNS.tex` → `a_cover-AHNS.pdf` - "AHNS" with "2015 - 2019"
+- `a_cover-US-2013-2017.pdf` - "Outer Dibblestan" with "2013 - 2017"
+- `a_cover-US-2018-2022.pdf` - "Outer Dibblestan" with "2018 - 2022"
+- `a_cover-US-2023-2027.pdf` - "Outer Dibblestan" with "2023 - 2027"
+- `a_cover-J-2020-2024.pdf` - "Uncle J" with "2020 - 2024"
+- `a_cover-J-2025-2029.pdf` - "Uncle J" with "2025 - 2029"
+- `a_cover-AHNS.pdf` - "AHNS" with "2015 - 2019"
 
 **Cover format**: Large title with smaller date range below on separate line.
 
-**To compile covers**: Run `xelatex filename.tex` in the `covers/` directory with LaTeX installed.
+**Cover generation**: Covers are generated during build via `generate_cover.py`.
 
 ## File Naming Convention
 Posts follow the pattern: `YYYY-MM-DD-[description]-[category]-YYYY-MM-DD.txt`
@@ -101,35 +97,36 @@ Examples:
 - `pandoc` - Markdown to HTML conversion
 - `sed` - Text processing  
 - `sponge` - From moreutils, for in-place file editing
-- `wkhtmltopdf` - HTML to PDF conversion
 - `pdftk` - PDF concatenation
 - `awk` - File aggregation
-- `xelatex` - LaTeX compilation (for covers)
+- `uv` - Python package manager (for WeasyPrint PDF generation)
 
 ## Usage
 
 ### Generate all books
 `./make_omnibus`
 
-This will create:
+Creates:
 - Individual category files (AHNS.pdf, J.pdf, US.pdf)
 - US 5-year books (book-US-2013-2017.pdf, book-US-2018-2022.pdf, book-US-2023-2027.pdf)
 - J 5-year books (book-J-2020-2024.pdf, book-J-2025-2029.pdf)
 - AHNS single volume (book-AHNS.pdf)
-- Combined book (book.pdf) - legacy
-- Monthly compilations (only -A- and -D- files)
-- HTML and TXT versions of all categories
+- Combined book (book.pdf)
+- Covers
+- Monthly compilations (-A- and -D- files only)
+- HTML and TXT versions
 
 ### Clean all generated files
 `./make_clean`
 
-Removes all generated .txt, .html, .pdf files and directories, leaving only source files and covers.
+Removes all generated files and directories, including covers.
 
 ## Technical Notes
 - Uses bash extended globbing (`shopt -s extglob`) and strict error handling (`set -euo pipefail`)
-- Processes run in parallel using `&` and `wait` for performance
+- Most operations run in parallel for speed
 - File filtering uses `find` with `-name` patterns and `-o` (or) logic
 - Year extraction via bash parameter expansion (`${file:6:4}`) from filename format `posts/YYYY-MM-DD-...`
 - Chronological order maintained through YYYY-MM-DD filename prefixes
-- Page dimensions: 8"×10" with specific margins for printing
+- Page dimensions: 8"×10" with margins for printing
+- Uses WeasyPrint for PDF generation (covers and content)
 - CSS styling applied via `pandoc.css` and `dow.py` processing

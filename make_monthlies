@@ -6,7 +6,7 @@ outdir="monthly"
 mkdir -p "$outdir"
 rm -f "$outdir"/*.txt
 
-months=$(for f in posts/*.txt; do
+months=$(find posts -name "*-A-*.txt" -o -name "*-D-*.txt" | while read f; do
     # strip directory, grab first 7 chars of filename
     fname=${f##*/}
     echo "${fname:0:7}"
@@ -14,9 +14,8 @@ done | sort -u)
 
 process_month() {
     local m="$1"
-    files=( posts/${m}-*.txt )
-    sorted=( $(printf '%s\n' "${files[@]}" | sort) )
-    cat "${sorted[@]}" > "$outdir/${m}.txt"
+    files=( $(find posts -name "${m}-*-A-*.txt" -o -name "${m}-*-D-*.txt" | sort) )
+    cat "${files[@]}" > "$outdir/${m}.txt"
 }
 
 for m in $months; do

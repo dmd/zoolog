@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 shopt -s extglob
 
@@ -12,17 +13,37 @@ process_file_type() {
     wkhtmltopdf -L 20  -R 20 -T 15 -B 15 --page-height 10in --page-width 8in ${file_type}.html ${file_type}.pdf
 }
 
+create_period_book() {
+    local category=$1
+    local start_year=$2
+    local end_year=$3
+    local filename="${category}-${start_year}-${end_year}"
+    
+    # Get all files for this category
+    case "$category" in
+        "US") files=$(find posts -name "*-D-*.txt" -o -name "*-A-*.txt") ;;
+        "J") files=$(find posts -name "*J*.txt") ;;
+        "AHNS") files=$(find posts -name "*AHNS*.txt") ;;
+    esac
+    
+    # Filter by year and process
+    echo "$files" | while read file; do
+        year=${file:6:4}  # Extract year from posts/YYYY-MM-DD-...
+        [[ $year -ge $start_year && $year -le $end_year ]] && echo "$file"
+    done | sort | xargs awk 'FNR==1{print ""}1' > "${filename}.txt"
+}
+
 # Generate 5-year US books
-find posts -name "201[3-7]-*" | grep -E "(-A-|-D-)" | sort | xargs awk 'FNR==1{print ""}1' > US-2013-2017.txt &
-find posts -name "201[8-9]-*" -o -name "202[0-2]-*" | grep -E "(-A-|-D-)" | sort | xargs awk 'FNR==1{print ""}1' > US-2018-2022.txt &
-find posts -name "202[3-7]-*" | grep -E "(-A-|-D-)" | sort | xargs awk 'FNR==1{print ""}1' > US-2023-2027.txt &
+create_period_book "US" 2013 2017 &
+create_period_book "US" 2018 2022 &
+create_period_book "US" 2023 2027 &
 
 # Generate 5-year J books
-find posts -name "202[0-4]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2020-2024.txt &
-find posts -name "202[5-9]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2025-2029.txt &
+create_period_book "J" 2020 2024 &
+create_period_book "J" 2025 2029 &
 
 # Generate AHNS single volume
-find posts -name "*AHNS*" | sort | xargs awk 'FNR==1{print ""}1' > AHNS.txt &
+create_period_book "AHNS" 2015 2019 &
 
 # Still generate the original combined files
 awk 'FNR==1{print ""}1' posts/*J* > J.txt &
@@ -52,7 +73,7 @@ pdftk covers/a_cover-J-2025-2029.pdf J-2025-2029.pdf cat output book-J-2025-2029
 # Generate separate AHNS book
 pdftk covers/a_cover-AHNS.pdf AHNS.pdf cat output book-AHNS.pdf &
 
-# Generate original combined book
+# Generate combined book
 pdftk covers/a_cover.pdf US.pdf covers/a_unclej.pdf J.pdf covers/a_ahns.pdf AHNS.pdf cat output book.pdf &
 
 ./make_monthlies &

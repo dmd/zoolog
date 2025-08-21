@@ -46,13 +46,13 @@ create_period_text() {
 # Generate all text files and covers in parallel
 echo "Generating period text files, combined files, and covers..."
 
-# Period text files
-create_period_text "US" 2013 2017 &
-create_period_text "US" 2018 2022 &
-create_period_text "US" 2023 2027 &
-create_period_text "J" 2020 2024 &
-create_period_text "J" 2025 2029 &
-create_period_text "AHNS" 2015 2019 &
+# Calculate current year for dynamic period
+current_year=$(date +%Y)
+
+# Period text files  
+create_period_text "US" 2013 2019 &
+create_period_text "US" 2020 9999 &
+create_period_text "J" 2020 9999 &
 
 # Combined files
 awk 'FNR==1{print ""}1' posts/*J* > J.txt &
@@ -63,12 +63,10 @@ awk 'FNR==1{print ""}1' posts/*AHNS* > AHNS.txt &
 generate_cover "Outer Dibblestan" "" "a_cover" &
 generate_cover "AHNS" "" "a_ahns" &
 generate_cover "Uncle J" "" "a_unclej" &
-generate_cover "Outer Dibblestan" "2013 - 2017" "a_cover-US-2013-2017" &
-generate_cover "Outer Dibblestan" "2018 - 2022" "a_cover-US-2018-2022" &
-generate_cover "Outer Dibblestan" "2023 - 2027" "a_cover-US-2023-2027" &
-generate_cover "Uncle J" "2020 - 2024" "a_cover-J-2020-2024" &
-generate_cover "Uncle J" "2025 - 2029" "a_cover-J-2025-2029" &
-generate_cover "AHNS" "2015 - 2019" "a_cover-AHNS" &
+generate_cover "Outer Dibblestan" "2013 - 2019" "a_cover-US-2013-2019" &
+generate_cover "Outer Dibblestan" "2020 - ${current_year}" "a_cover-US-2020-${current_year}" &
+generate_cover "Uncle J" "2020 - ${current_year}" "a_cover-J-2020-${current_year}" &
+generate_cover "AHNS" "" "a_cover-AHNS" &
 
 # Wait for all text files and covers to complete
 wait
@@ -78,21 +76,17 @@ echo "Period text files, combined files, and covers generated successfully."
 process_file_type "US" &
 process_file_type "J" &
 process_file_type "AHNS" &
-process_file_type "US-2013-2017" &
-process_file_type "US-2018-2022" &
-process_file_type "US-2023-2027" &
-process_file_type "J-2020-2024" &
-process_file_type "J-2025-2029" &
+process_file_type "US-2013-2019" &
+process_file_type "US-2020-9999" &
+process_file_type "J-2020-9999" &
 wait
 
-# Generate separate 5-year US books
-pdftk covers/a_cover-US-2013-2017.pdf US-2013-2017.pdf cat output book-US-2013-2017.pdf &
-pdftk covers/a_cover-US-2018-2022.pdf US-2018-2022.pdf cat output book-US-2018-2022.pdf &
-pdftk covers/a_cover-US-2023-2027.pdf US-2023-2027.pdf cat output book-US-2023-2027.pdf &
+# Generate separate decade US books
+pdftk covers/a_cover-US-2013-2019.pdf US-2013-2019.pdf cat output book-US-2013-2019.pdf &
+pdftk covers/a_cover-US-2020-${current_year}.pdf US-2020-9999.pdf cat output book-US-2020-${current_year}.pdf &
 
-# Generate separate 5-year J books
-pdftk covers/a_cover-J-2020-2024.pdf J-2020-2024.pdf cat output book-J-2020-2024.pdf &
-pdftk covers/a_cover-J-2025-2029.pdf J-2025-2029.pdf cat output book-J-2025-2029.pdf &
+# Generate separate J book
+pdftk covers/a_cover-J-2020-${current_year}.pdf J-2020-9999.pdf cat output book-J-2020-${current_year}.pdf &
 
 # Generate separate AHNS book
 pdftk covers/a_cover-AHNS.pdf AHNS.pdf cat output book-AHNS.pdf &
@@ -103,16 +97,7 @@ pdftk covers/a_cover.pdf US.pdf covers/a_unclej.pdf J.pdf covers/a_ahns.pdf AHNS
 ./make_monthlies &
 wait
 
-# Clean up intermediate 5-year period files in parallel
-rm -f US-2013-2017.txt US-2018-2022.txt US-2023-2027.txt &
-rm -f J-2020-2024.txt J-2025-2029.txt &
-rm -f AHNS-2015-2019.txt &
-rm -f US-2013-2017.html US-2018-2022.html US-2023-2027.html &
-rm -f J-2020-2024.html J-2025-2029.html &
-rm -f AHNS-2015-2019.html &
-rm -f US-2013-2017.pdf US-2018-2022.pdf US-2023-2027.pdf &
-rm -f J-2020-2024.pdf J-2025-2029.pdf &
-rm -f AHNS-2015-2019.pdf &
-wait
+# Clean up intermediate period files
+rm -f US-2013-2019.{txt,html,pdf} US-2020-9999.{txt,html,pdf} J-2020-9999.{txt,html,pdf}
 
 echo "Books generated successfully."

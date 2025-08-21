@@ -2,22 +2,22 @@
 
 # Remove all generated text files
 rm -f US.txt J.txt AHNS.txt
-rm -f US-2013-2017.txt US-2018-2022.txt US-2023-2027.txt
-rm -f J-2020-2024.txt J-2025-2029.txt
+rm -f US-2013-2019.txt US-2020-9999.txt
+rm -f J-2020-9999.txt
 
 # Remove all generated HTML files
 rm -f US.html J.html AHNS.html
-rm -f US-2013-2017.html US-2018-2022.html US-2023-2027.html
-rm -f J-2020-2024.html J-2025-2029.html
+rm -f US-2013-2019.html US-2020-9999.html
+rm -f J-2020-9999.html
 
 # Remove all generated PDF files (individual categories and periods)
 rm -f US.pdf J.pdf AHNS.pdf
-rm -f US-2013-2017.pdf US-2018-2022.pdf US-2023-2027.pdf
-rm -f J-2020-2024.pdf J-2025-2029.pdf
+rm -f US-2013-2019.pdf US-2020-9999.pdf
+rm -f J-2020-9999.pdf
 
 # Remove all final book PDFs
-rm -f book-US-2013-2017.pdf book-US-2018-2022.pdf book-US-2023-2027.pdf
-rm -f book-J-2020-2024.pdf book-J-2025-2029.pdf
+rm -f book-US-2013-2019.pdf book-US-2020-*.pdf
+rm -f book-J-2020-*.pdf
 rm -f book-AHNS.pdf book.pdf
 
 # Remove legacy decade books (if they exist)
@@ -28,8 +28,8 @@ rm -rf monthly/
 
 # Remove generated covers
 rm -f covers/a_cover.pdf covers/a_ahns.pdf covers/a_unclej.pdf
-rm -f covers/a_cover-US-2013-2017.pdf covers/a_cover-US-2018-2022.pdf covers/a_cover-US-2023-2027.pdf
-rm -f covers/a_cover-J-2020-2024.pdf covers/a_cover-J-2025-2029.pdf
+rm -f covers/a_cover-US-2013-2019.pdf covers/a_cover-US-2020-*.pdf
+rm -f covers/a_cover-J-2020-*.pdf
 rm -f covers/a_cover-AHNS.pdf
 
 echo "Cleaned all generated files"

@@ -1,15 +1,15 @@
 # Zoolog Family Journal System
 
 ## Overview
-This system compiles family journal entries into organized books in HTML, TXT, and PDF formats. The entries are categorized and compiled into individual category books and separate 5-year period books for each category.
+This system compiles family journal entries into organized books in HTML, TXT, and PDF formats. The entries are categorized and compiled into individual category books and separate decade books for each category.
 
 ## Directory Structure
 - `posts/` - Contains individual journal entries as .txt files, each with a header date line
 - `covers/` - PDF covers for all books
 - `monthly/` - Monthly compilation files (YYYY-MM.txt format)
 - Individual category outputs: `AHNS.html`, `AHNS.pdf`, `AHNS.txt`, `J.html`, `J.pdf`, `J.txt`, `US.html`, `US.pdf`, `US.txt`
-- US 5-year books: `book-US-2013-2017.pdf`, `book-US-2018-2022.pdf`, `book-US-2023-2027.pdf`
-- J 5-year books: `book-J-2020-2024.pdf`, `book-J-2025-2029.pdf`
+- US decade books: `book-US-2013-2019.pdf`, `book-US-2020-YYYY.pdf` (where YYYY is current year)
+- J decade books: `book-J-2020-YYYY.pdf` (where YYYY is current year)
 - AHNS single volume: `book-AHNS.pdf`
 - Legacy combined book: `book.pdf`
 
@@ -26,13 +26,13 @@ Posts are categorized by filename patterns:
 - **Pattern**: Files containing "J" in the filename
 - **Example**: `2024-01-20-J-2024-01-20.txt`
 - **Date range**: 2020-present
-- **Appears in**: J.pdf, 5-year J books based on date
+- **Appears in**: J.pdf, decade J books based on date
 
 ### US Category (Main family entries)
 - **Pattern**: Files containing "-A-" or "-D-" in the filename
 - **Example**: `2023-12-12-A-2024-01-16.txt`
 - **Date range**: 2013-present
-- **Appears in**: US.pdf, 5-year US books based on date
+- **Appears in**: US.pdf, decade US books based on date
 
 ## Main Scripts
 
@@ -47,8 +47,8 @@ Primary compilation script that generates all books.
 5. Clean up intermediate files
 
 **Output Books**:
-- US 5-year books: `book-US-2013-2017.pdf`, `book-US-2018-2022.pdf`, `book-US-2023-2027.pdf`
-- J 5-year books: `book-J-2020-2024.pdf`, `book-J-2025-2029.pdf`
+- US decade books: `book-US-2013-2019.pdf`, `book-US-2020-YYYY.pdf` (where YYYY is current year)
+- J decade books: `book-J-2020-YYYY.pdf` (where YYYY is current year)
 - AHNS single volume: `book-AHNS.pdf`
 - `book.pdf`: Complete combined book (legacy)
 
@@ -73,12 +73,10 @@ Generated covers stored in `covers/` directory:
 - `a_unclej.pdf` - Uncle J section divider
 
 **Year-specific covers:**
-- `a_cover-US-2013-2017.pdf` - "Outer Dibblestan" with "2013 - 2017"
-- `a_cover-US-2018-2022.pdf` - "Outer Dibblestan" with "2018 - 2022"
-- `a_cover-US-2023-2027.pdf` - "Outer Dibblestan" with "2023 - 2027"
-- `a_cover-J-2020-2024.pdf` - "Uncle J" with "2020 - 2024"
-- `a_cover-J-2025-2029.pdf` - "Uncle J" with "2025 - 2029"
-- `a_cover-AHNS.pdf` - "AHNS" with "2015 - 2019"
+- `a_cover-US-2013-2019.pdf` - "Outer Dibblestan" with "2013 - 2019"
+- `a_cover-US-2020-YYYY.pdf` - "Outer Dibblestan" with "2020 - YYYY" (where YYYY is current year)
+- `a_cover-J-2020-YYYY.pdf` - "Uncle J" with "2020 - YYYY" (where YYYY is current year)
+- `a_cover-AHNS.pdf` - "AHNS" without years
 
 **Cover format**: Large title with smaller date range below on separate line.
 
@@ -108,8 +106,8 @@ Examples:
 
 Creates:
 - Individual category files (AHNS.pdf, J.pdf, US.pdf)
-- US 5-year books (book-US-2013-2017.pdf, book-US-2018-2022.pdf, book-US-2023-2027.pdf)
-- J 5-year books (book-J-2020-2024.pdf, book-J-2025-2029.pdf)
+- US decade books (book-US-2013-2019.pdf, book-US-2020-YYYY.pdf where YYYY is current year)
+- J decade books (book-J-2020-YYYY.pdf where YYYY is current year)
 - AHNS single volume (book-AHNS.pdf)
 - Combined book (book.pdf)
 - Covers

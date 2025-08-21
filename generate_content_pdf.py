@@ -15,6 +15,12 @@ def generate_content_pdf(html_file, pdf_file):
     @page {
         size: 8in 10in;
         margin: 30pt 40pt 30pt 40pt;
+        @bottom-center {
+            content: counter(page);
+            font-family: Georgia, serif;
+            font-size: 8pt;
+            color: #888;
+        }
     }
     
     body {

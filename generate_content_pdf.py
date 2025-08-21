@@ -14,12 +14,21 @@ def generate_content_pdf(html_file, pdf_file):
     additional_css = """
     @page {
         size: 8in 10in;
-        margin: 15pt 20pt 15pt 20pt;
+        margin: 30pt 40pt 30pt 40pt;
     }
     
     body {
         font-family: Georgia, serif;
-        font-size: 11pt;
+        font-size: 10pt;
+    }
+    
+    td {
+        text-align: justify;
+    }
+    
+    tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
     }
     """
     

@@ -12,13 +12,17 @@ process_file_type() {
     wkhtmltopdf -L 20  -R 20 -T 15 -B 15 --page-height 10in --page-width 8in ${file_type}.html ${file_type}.pdf
 }
 
-# Generate decade-specific files for 2013-2023
-find posts -name "201[3-9]-*J*" -o -name "202[0-3]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2013-2023.txt &
-find posts -name "201[3-9]-*" -o -name "202[0-3]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2013-2023.txt &
+# Generate 5-year US books
+find posts -name "201[3-7]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2013-2017.txt &
+find posts -name "201[8-9]-*" -o -name "202[0-2]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2018-2022.txt &
+find posts -name "202[3-7]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2023-2027.txt &
 
-# Generate decade-specific files for 2024-2034
-find posts -name "202[4-9]-*J*" -o -name "203[0-4]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2024-2034.txt &
-find posts -name "202[4-9]-*" -o -name "203[0-4]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2024-2034.txt &
+# Generate 5-year J books
+find posts -name "202[0-4]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2020-2024.txt &
+find posts -name "202[5-9]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2025-2029.txt &
+
+# Generate AHNS single volume
+find posts -name "*AHNS*" | sort | xargs awk 'FNR==1{print ""}1' > AHNS.txt &
 
 # Still generate the original combined files for backward compatibility
 awk 'FNR==1{print ""}1' posts/*J* > J.txt &
@@ -28,18 +32,38 @@ wait
 # Process all file types
 process_file_type "US" &
 process_file_type "J" &
-process_file_type "US-2013-2023" &
-process_file_type "J-2013-2023" &
-process_file_type "US-2024-2034" &
-process_file_type "J-2024-2034" &
+process_file_type "AHNS" &
+process_file_type "US-2013-2017" &
+process_file_type "US-2018-2022" &
+process_file_type "US-2023-2027" &
+process_file_type "J-2020-2024" &
+process_file_type "J-2025-2029" &
 wait
 
-# Generate decade books
-pdftk a_cover-2013-2023.pdf US-2013-2023.pdf a_unclej.pdf J-2013-2023.pdf a_ahns.pdf AHNS.pdf cat output book-2013-2023.pdf &
-pdftk a_cover-2024-2034.pdf US-2024-2034.pdf a_unclej.pdf J-2024-2034.pdf cat output book-2024-2034.pdf &
+# Generate separate 5-year US books
+pdftk covers/a_cover-US-2013-2017.pdf US-2013-2017.pdf cat output book-US-2013-2017.pdf &
+pdftk covers/a_cover-US-2018-2022.pdf US-2018-2022.pdf cat output book-US-2018-2022.pdf &
+pdftk covers/a_cover-US-2023-2027.pdf US-2023-2027.pdf cat output book-US-2023-2027.pdf &
+
+# Generate separate 5-year J books
+pdftk covers/a_cover-J-2020-2024.pdf J-2020-2024.pdf cat output book-J-2020-2024.pdf &
+pdftk covers/a_cover-J-2025-2029.pdf J-2025-2029.pdf cat output book-J-2025-2029.pdf &
+
+# Generate separate AHNS book
+pdftk covers/a_cover-AHNS.pdf AHNS.pdf cat output book-AHNS.pdf &
 
 # Generate original combined book for backward compatibility
-pdftk a_cover.pdf US.pdf a_unclej.pdf J.pdf a_ahns.pdf AHNS.pdf cat output book.pdf &
+pdftk covers/a_cover.pdf US.pdf covers/a_unclej.pdf J.pdf covers/a_ahns.pdf AHNS.pdf cat output book.pdf &
 
 ./make_monthlies &
 wait
+
+# Clean up intermediate 5-year period files (keep only combined US, J, AHNS files)
+rm -f US-2013-2017.txt US-2018-2022.txt US-2023-2027.txt
+rm -f J-2020-2024.txt J-2025-2029.txt
+rm -f US-2013-2017.html US-2018-2022.html US-2023-2027.html
+rm -f J-2020-2024.html J-2025-2029.html
+rm -f US-2013-2017.pdf US-2018-2022.pdf US-2023-2027.pdf
+rm -f J-2020-2024.pdf J-2025-2029.pdf
+
+echo "Books generated successfully. Intermediate 5-year files cleaned up."

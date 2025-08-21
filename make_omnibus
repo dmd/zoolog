@@ -13,9 +13,9 @@ process_file_type() {
 }
 
 # Generate 5-year US books
-find posts -name "201[3-7]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2013-2017.txt &
-find posts -name "201[8-9]-*" -o -name "202[0-2]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2018-2022.txt &
-find posts -name "202[3-7]-*" | grep -v AHNS | grep -v J | sort | xargs awk 'FNR==1{print ""}1' > US-2023-2027.txt &
+find posts -name "201[3-7]-*" | grep -E "(-A-|-D-)" | sort | xargs awk 'FNR==1{print ""}1' > US-2013-2017.txt &
+find posts -name "201[8-9]-*" -o -name "202[0-2]-*" | grep -E "(-A-|-D-)" | sort | xargs awk 'FNR==1{print ""}1' > US-2018-2022.txt &
+find posts -name "202[3-7]-*" | grep -E "(-A-|-D-)" | sort | xargs awk 'FNR==1{print ""}1' > US-2023-2027.txt &
 
 # Generate 5-year J books
 find posts -name "202[0-4]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2020-2024.txt &
@@ -24,7 +24,7 @@ find posts -name "202[5-9]-*J*" | sort | xargs awk 'FNR==1{print ""}1' > J-2025-
 # Generate AHNS single volume
 find posts -name "*AHNS*" | sort | xargs awk 'FNR==1{print ""}1' > AHNS.txt &
 
-# Still generate the original combined files for backward compatibility
+# Still generate the original combined files
 awk 'FNR==1{print ""}1' posts/*J* > J.txt &
 awk 'FNR==1{print ""}1' posts/!(*AHNS*|*J*) > US.txt &
 wait
@@ -52,7 +52,7 @@ pdftk covers/a_cover-J-2025-2029.pdf J-2025-2029.pdf cat output book-J-2025-2029
 # Generate separate AHNS book
 pdftk covers/a_cover-AHNS.pdf AHNS.pdf cat output book-AHNS.pdf &
 
-# Generate original combined book for backward compatibility
+# Generate original combined book
 pdftk covers/a_cover.pdf US.pdf covers/a_unclej.pdf J.pdf covers/a_ahns.pdf AHNS.pdf cat output book.pdf &
 
 ./make_monthlies &
@@ -66,4 +66,4 @@ rm -f J-2020-2024.html J-2025-2029.html
 rm -f US-2013-2017.pdf US-2018-2022.pdf US-2023-2027.pdf
 rm -f J-2020-2024.pdf J-2025-2029.pdf
 
-echo "Books generated successfully. Intermediate 5-year files cleaned up."
+echo "Books generated successfully."

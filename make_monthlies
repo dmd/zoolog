@@ -2,23 +2,25 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-outdir="monthly"
-mkdir -p "$outdir"
-rm -f "$outdir"/*.txt
+mkdir -p monthly
+rm -f monthly/*.txt
 
-months=$(find posts -name "*-A-*.txt" -o -name "*-D-*.txt" | while read f; do
-    # strip directory, grab first 7 chars of filename
+# Find all files once and group by month
+declare -A month_files
+while IFS= read -r f; do
     fname=${f##*/}
-    echo "${fname:0:7}"
-done | sort -u)
+    month="${fname:0:7}"
+    month_files["$month"]+="$f "
+done < <(find posts -name "*-A-*.txt" -o -name "*-D-*.txt" | sort)
 
 process_month() {
     local m="$1"
-    files=( $(find posts -name "${m}-*-A-*.txt" -o -name "${m}-*-D-*.txt" | sort) )
-    cat "${files[@]}" > "$outdir/${m}.txt"
+    local files="$2"
+    # Use xargs to avoid command line length issues
+    echo $files | tr ' ' '\n' | xargs cat > "monthly/${m}.txt"
 }
 
-for m in $months; do
-    process_month "$m" &
+for month in "${!month_files[@]}"; do
+    process_month "$month" "${month_files[$month]}" &
 done
 wait

@@ -1,17 +1,13 @@
 #!/bin/bash
 set -euo pipefail
-
 shopt -s extglob
 
-# Create build directory
-mkdir -p build
-cd build
+mkdir -p build && cd build
 
 generate_cover() {
     local title="$1"
     local subtitle="$2"
     local output_name="$3"
-    
     local pdf_file="${output_name}.pdf"
     
     ../generate_cover.py "$title" "$subtitle" "$pdf_file"
@@ -40,53 +36,51 @@ create_period_text() {
         "AHNS") files=$(find ../posts -name "*AHNS*.txt") ;;
     esac
     
-    # Filter by year and process
+    # Filter by year
     echo "$files" | while read file; do
         year=${file:9:4}  # Extract year from ../posts/YYYY-MM-DD-...
         [[ $year -ge $start_year && $year -le $end_year ]] && echo "$file"
     done | sort | xargs awk 'FNR==1{print ""}1' > "${filename}.txt"
 }
 
-# Generate all text files and covers in parallel
 echo "Generating period text files, combined files, and covers..."
 
-# Calculate current year for dynamic period
 current_year=$(date +%Y)
 
 # Create decade-based text files
-create_period_text "US" 2013 2019 &
+# 2010s
 create_period_text "AHNS" 2013 2019 &
-create_period_text "US" 2020 $current_year &
+create_period_text "US" 2013 2019 &
+# 2020s
 create_period_text "J" 2020 $current_year &
+create_period_text "US" 2020 $current_year &
 
-# Combined files
+# All time
+awk 'FNR==1{print ""}1' ../posts/*AHNS* > AHNS.txt &
 awk 'FNR==1{print ""}1' ../posts/*J* > J.txt &
 awk 'FNR==1{print ""}1' ../posts/!(*AHNS*|*J*) > US.txt &
-awk 'FNR==1{print ""}1' ../posts/*AHNS* > AHNS.txt &
 
-# Covers
-generate_cover "Outer Dibblestan" "" "a_cover" &
+
 generate_cover "AHNS" "2013 - 2019" "a_ahns" &
-generate_cover "Uncle J" "2020 - ${current_year}" "a_unclej" &
+generate_cover "Outer Dibblestan" "" "a_cover" &
 generate_cover "Outer Dibblestan" "2013 - 2019" "a_cover-2013-2019" &
 generate_cover "Outer Dibblestan" "2020 - ${current_year}" "a_cover-2020-${current_year}" &
+generate_cover "Uncle J" "2020 - ${current_year}" "a_unclej" &
 
-# Wait for all text files and covers to complete
 wait
 echo "Period text files, combined files, and covers generated successfully."
 
 # Process all file types
+process_file_type "AHNS" &
 process_file_type "US" &
 process_file_type "J" &
-process_file_type "AHNS" &
-process_file_type "US-2013-2019" &
-process_file_type "AHNS-2013-2019" &
-process_file_type "US-2020-${current_year}" &
 process_file_type "J-2020-${current_year}" &
+process_file_type "US-2013-2019" &
+process_file_type "US-2020-${current_year}" &
 wait
 
 # Generate decade books
-pdftk a_cover-2013-2019.pdf US-2013-2019.pdf a_ahns.pdf AHNS-2013-2019.pdf cat output book-2013-2019.pdf &
+pdftk a_cover-2013-2019.pdf US-2013-2019.pdf a_ahns.pdf AHNS.pdf cat output book-2013-2019.pdf &
 pdftk a_cover-2020-${current_year}.pdf US-2020-${current_year}.pdf a_unclej.pdf J-2020-${current_year}.pdf cat output book-2020-${current_year}.pdf &
 
 # Generate combined book
@@ -94,18 +88,13 @@ pdftk a_cover.pdf US.pdf a_unclej.pdf J.pdf a_ahns.pdf AHNS.pdf cat output book.
 
 wait
 
-# Run make_monthlies from parent directory
-cd ..
-./make_monthlies &
-wait
-cd build
-
-# Move final files out of build directory
 mv book-2013-2019.pdf book-2020-${current_year}.pdf book.pdf ../
 mv AHNS.{html,pdf,txt} J.{html,pdf,txt} US.{html,pdf,txt} ../
 
 # Return to main directory and clean up
 cd ..
 rm -rf build
+
+./make_monthlies
 
 echo "Books generated successfully."

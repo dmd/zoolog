@@ -183,7 +183,6 @@ button.active {
 
 .posts-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -329,7 +328,6 @@ button.active {
 
 .post-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   align-items: center;

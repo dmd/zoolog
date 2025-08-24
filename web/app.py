@@ -152,8 +152,17 @@ def api_posts():
         params.append(start_date)
     
     if end_date:
-        conditions.append('posts.date <= ?')
-        params.append(end_date)
+        # Make end_date inclusive by treating it as < next_day
+        try:
+            # Parse the date and add one day
+            date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            next_day = date_obj + timedelta(days=1)
+            conditions.append('posts.date < ?')
+            params.append(next_day.strftime('%Y-%m-%d'))
+        except ValueError:
+            # Fallback to original behavior if date parsing fails
+            conditions.append('posts.date <= ?')
+            params.append(end_date)
     
     if search:
         # Use FTS for search, sorted by date ascending
@@ -251,8 +260,17 @@ def api_post(post_id):
         params.append(start_date)
     
     if end_date:
-        conditions.append('posts.date <= ?')
-        params.append(end_date)
+        # Make end_date inclusive by treating it as < next_day
+        try:
+            # Parse the date and add one day
+            date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            next_day = date_obj + timedelta(days=1)
+            conditions.append('posts.date < ?')
+            params.append(next_day.strftime('%Y-%m-%d'))
+        except ValueError:
+            # Fallback to original behavior if date parsing fails
+            conditions.append('posts.date <= ?')
+            params.append(end_date)
     
     # Get adjacent posts within search context
     if search:

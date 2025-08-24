@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
@@ -15,6 +15,16 @@ import quopri
 from datetime import datetime
 from pathlib import Path
 import markdown
+
+def clean_text_for_search(text):
+    """Clean text for search indexing by removing punctuation and normalizing"""
+    if not text:
+        return ""
+    
+    # Remove punctuation and normalize whitespace
+    cleaned = re.sub(r'[^\w\s]', ' ', text)
+    cleaned = re.sub(r'\s+', ' ', cleaned)
+    return cleaned.strip()
 
 def extract_post_info(filename, content):
     """Extract metadata from post filename and content"""
@@ -68,12 +78,18 @@ def extract_post_info(filename, content):
     # Create excerpt (first 200 chars) from content (excluding first line)
     excerpt = content_text[:200] + "..." if len(content_text) > 200 else content_text
     
+    # Clean content for search indexing (remove punctuation)
+    clean_content = clean_text_for_search(content_text)
+    clean_title = clean_text_for_search(title)
+    
     return {
         'filename': filename,
         'date': post_date,
         'category': category,
         'title': title,
         'content': content_text,
+        'clean_content': clean_content,
+        'clean_title': clean_title,
         'excerpt': excerpt,
         'year': post_date.year,
         'month': post_date.month,
@@ -94,6 +110,8 @@ def create_database(db_path):
             category TEXT NOT NULL,
             title TEXT,
             content TEXT,
+            clean_title TEXT,
+            clean_content TEXT,
             excerpt TEXT,
             year INTEGER,
             month INTEGER,
@@ -102,10 +120,21 @@ def create_database(db_path):
         )
     ''')
     
-    # Full-text search virtual table
+    # Add missing columns if they don't exist
+    try:
+        cursor.execute('ALTER TABLE posts ADD COLUMN clean_title TEXT')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute('ALTER TABLE posts ADD COLUMN clean_content TEXT')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    # Full-text search virtual table using cleaned content
     cursor.execute('''
         CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
-            filename, title, content, category,
+            filename, clean_title, clean_content, category,
             content='posts',
             content_rowid='id'
         )
@@ -114,24 +143,24 @@ def create_database(db_path):
     # Triggers to keep FTS in sync
     cursor.execute('''
         CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN
-            INSERT INTO posts_fts(rowid, filename, title, content, category)
-            VALUES (new.id, new.filename, new.title, new.content, new.category);
+            INSERT INTO posts_fts(rowid, filename, clean_title, clean_content, category)
+            VALUES (new.id, new.filename, new.clean_title, new.clean_content, new.category);
         END
     ''')
     
     cursor.execute('''
         CREATE TRIGGER IF NOT EXISTS posts_ad AFTER DELETE ON posts BEGIN
-            INSERT INTO posts_fts(posts_fts, rowid, filename, title, content, category)
-            VALUES('delete', old.id, old.filename, old.title, old.content, old.category);
+            INSERT INTO posts_fts(posts_fts, rowid, filename, clean_title, clean_content, category)
+            VALUES('delete', old.id, old.filename, old.clean_title, old.clean_content, old.category);
         END
     ''')
     
     cursor.execute('''
         CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE ON posts BEGIN
-            INSERT INTO posts_fts(posts_fts, rowid, filename, title, content, category)
-            VALUES('delete', old.id, old.filename, old.title, old.content, old.category);
-            INSERT INTO posts_fts(rowid, filename, title, content, category)
-            VALUES (new.id, new.filename, new.title, new.content, new.category);
+            INSERT INTO posts_fts(posts_fts, rowid, filename, clean_title, clean_content, category)
+            VALUES('delete', old.id, old.filename, old.clean_title, old.clean_content, old.category);
+            INSERT INTO posts_fts(rowid, filename, clean_title, clean_content, category)
+            VALUES (new.id, new.filename, new.clean_title, new.clean_content, new.category);
         END
     ''')
     
@@ -174,14 +203,16 @@ def index_posts(posts_dir, db_path):
             post_info = extract_post_info(txt_file.name, content)
             if post_info:
                 cursor.execute('''
-                    INSERT INTO posts (filename, date, category, title, content, excerpt, year, month, day)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO posts (filename, date, category, title, content, clean_title, clean_content, excerpt, year, month, day)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     post_info['filename'],
                     post_info['date'].isoformat(),
                     post_info['category'],
                     post_info['title'],
                     post_info['content'],
+                    post_info['clean_title'],
+                    post_info['clean_content'],
                     post_info['excerpt'],
                     post_info['year'],
                     post_info['month'],

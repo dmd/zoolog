@@ -353,6 +353,14 @@ button.active {
   content: none; 
 }
 
+/* Search highlighting */
+.search-highlight {
+  background-color: #ffeb3b;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
 /* Loading */
 .loading {
   position: fixed;

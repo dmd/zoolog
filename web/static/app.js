@@ -8,7 +8,7 @@ class ZoologApp {
             start_date: '',
             end_date: '',
             offset: 0,
-            limit: 50
+            limit: 200
         };
         this.posts = [];
         this.totalPosts = 0;
@@ -219,7 +219,15 @@ class ZoologApp {
         this.showLoading();
         
         try {
-            const response = await fetch(`/api/post/${postId}`);
+            // Pass current search context to get correct prev/next posts
+            const params = new URLSearchParams({
+                search: this.currentQuery.search,
+                category: this.currentQuery.category,
+                start_date: this.currentQuery.start_date,
+                end_date: this.currentQuery.end_date
+            });
+            
+            const response = await fetch(`/api/post/${postId}?${params}`);
             const data = await response.json();
             
             if (data.error) {
@@ -238,6 +246,20 @@ class ZoologApp {
         }
     }
     
+    highlightSearchTerms(html, searchTerms) {
+        if (!searchTerms || searchTerms.length === 0) return html;
+        
+        let highlightedHtml = html;
+        searchTerms.forEach(term => {
+            if (term.length > 1) {
+                const regex = new RegExp(`(\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b)`, 'gi');
+                highlightedHtml = highlightedHtml.replace(regex, '<mark class="search-highlight">$1</mark>');
+            }
+        });
+        
+        return highlightedHtml;
+    }
+    
     renderPost() {
         if (!this.currentPost) return;
         
@@ -249,12 +271,18 @@ class ZoologApp {
         const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
         const date = `${isoDate} ${dayOfWeek}`;
         
+        // Highlight search terms if they exist
+        let htmlContent = post.html_content;
+        if (this.currentPost.search_terms) {
+            htmlContent = this.highlightSearchTerms(htmlContent, this.currentPost.search_terms);
+        }
+        
         postContent.innerHTML = `
             <div class="post-meta">
                 <span class="post-date">${date}</span>
                 <span class="post-category ${post.category.toLowerCase()}">${post.category}</span>
             </div>
-            <div class="post-text">${post.html_content}</div>
+            <div class="post-text">${htmlContent}</div>
         `;
         
         // Update navigation buttons
@@ -349,7 +377,7 @@ class ZoologApp {
             start_date: '',
             end_date: '',
             offset: 0,
-            limit: 50
+            limit: 200
         };
         
         this.loadPosts(true);

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
@@ -156,14 +156,14 @@ def api_posts():
         params.append(end_date)
     
     if search:
-        # Use FTS for search
+        # Use FTS for search, sorted by date descending
         cursor.execute('''
             SELECT posts.*, posts_fts.rank
             FROM posts_fts
             JOIN posts ON posts.id = posts_fts.rowid
             WHERE posts_fts MATCH ?
             {} 
-            ORDER BY posts_fts.rank, date DESC
+            ORDER BY date DESC
             LIMIT ? OFFSET ?
         '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
         [search] + params + [limit, offset])
@@ -228,22 +228,83 @@ def api_post(post_id):
     if not row:
         return jsonify({'error': 'Post not found'}), 404
     
-    # Get adjacent posts
-    cursor.execute('''
-        SELECT id, title, date FROM posts 
-        WHERE date < ? 
-        ORDER BY date DESC 
-        LIMIT 1
-    ''', [row['date']])
-    prev_post = cursor.fetchone()
+    # Get search context from query parameters
+    category = request.args.get('category', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    search = request.args.get('search', '')
     
-    cursor.execute('''
-        SELECT id, title, date FROM posts 
-        WHERE date > ? 
-        ORDER BY date ASC 
-        LIMIT 1
-    ''', [row['date']])
-    next_post = cursor.fetchone()
+    # Build conditions for navigation within search results
+    conditions = []
+    params = []
+    
+    if category:
+        if category == 'US':
+            conditions.append('posts.category IN (?, ?)')
+            params.extend(['A', 'D'])
+        else:
+            conditions.append('posts.category = ?')
+            params.append(category)
+    
+    if start_date:
+        conditions.append('posts.date >= ?')
+        params.append(start_date)
+    
+    if end_date:
+        conditions.append('posts.date <= ?')
+        params.append(end_date)
+    
+    # Get adjacent posts within search context
+    if search:
+        # Previous post in search results (newer date)
+        cursor.execute('''
+            SELECT posts.id, posts.title, posts.date 
+            FROM posts_fts
+            JOIN posts ON posts.id = posts_fts.rowid
+            WHERE posts_fts MATCH ? AND posts.date > ?
+            {} 
+            ORDER BY posts.date ASC
+            LIMIT 1
+        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
+        [search, row['date']] + params)
+        prev_post = cursor.fetchone()
+        
+        # Next post in search results (older date)
+        cursor.execute('''
+            SELECT posts.id, posts.title, posts.date 
+            FROM posts_fts
+            JOIN posts ON posts.id = posts_fts.rowid
+            WHERE posts_fts MATCH ? AND posts.date < ?
+            {} 
+            ORDER BY posts.date DESC
+            LIMIT 1
+        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
+        [search, row['date']] + params)
+        next_post = cursor.fetchone()
+    else:
+        # Regular navigation within filtered results
+        if conditions:
+            where_clause = 'WHERE ' + ' AND '.join(conditions) + ' AND'
+        else:
+            where_clause = 'WHERE'
+        
+        # Previous post (newer date)
+        cursor.execute(f'''
+            SELECT id, title, date FROM posts 
+            {where_clause} date > ?
+            ORDER BY date ASC 
+            LIMIT 1
+        ''', params + [row['date']])
+        prev_post = cursor.fetchone()
+        
+        # Next post (older date)
+        cursor.execute(f'''
+            SELECT id, title, date FROM posts 
+            {where_clause} date < ?
+            ORDER BY date DESC 
+            LIMIT 1
+        ''', params + [row['date']])
+        next_post = cursor.fetchone()
     
     conn.close()
     
@@ -279,6 +340,10 @@ def api_post(post_id):
             'date': next_post['date']
         }
     
+    # Add search context for highlighting
+    if search:
+        result['search_terms'] = search.split()
+    
     return jsonify(result)
 
 @app.route('/api/search/suggestions')
@@ -291,17 +356,17 @@ def api_search_suggestions():
     conn = get_db()
     cursor = conn.cursor()
     
-    # Get common words/phrases from titles and content
+    # Get common words/phrases from cleaned titles and content
     cursor.execute('''
-        SELECT title, content FROM posts 
-        WHERE title LIKE ? OR content LIKE ?
+        SELECT clean_title, clean_content FROM posts 
+        WHERE clean_title LIKE ? OR clean_content LIKE ?
         LIMIT 10
     ''', [f'%{query}%', f'%{query}%'])
     
     suggestions = set()
     for row in cursor.fetchall():
-        # Simple word extraction for suggestions
-        text = (row['title'] or '') + ' ' + (row['content'] or '')
+        # Simple word extraction for suggestions from cleaned text
+        text = (row['clean_title'] or '') + ' ' + (row['clean_content'] or '')
         words = text.lower().split()
         for word in words:
             if query.lower() in word and len(word) > 2:

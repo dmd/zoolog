@@ -97,4 +97,8 @@ rm -rf build
 
 ./make_monthlies
 
+# Rebuild web index
+echo "Rebuilding web index..."
+cd web && ./indexer.py
+
 echo "Books generated successfully."

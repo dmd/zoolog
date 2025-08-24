@@ -154,9 +154,6 @@ class ZoologApp {
             const response = await fetch('/api/stats');
             const stats = await response.json();
             
-            const statsText = `${stats.total_posts.toLocaleString()} posts • ${stats.date_range.start} to ${stats.date_range.end}`;
-            document.getElementById('stats-text').textContent = statsText;
-            
             // Initialize date pickers with ISO-8601 format
             document.getElementById('start-date').value = stats.date_range.start;
             document.getElementById('end-date').value = stats.date_range.end;

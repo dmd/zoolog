@@ -6,3 +6,4 @@ monthly
 .DS_Store
 zoomail.ini
 .claude
+.playwright-mcp

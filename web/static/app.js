@@ -147,6 +147,11 @@ class ZoologApp {
                 this.hideSuggestions();
             }
         });
+        
+        // Reset to show all posts when clicking Zoolog title
+        document.querySelector('h1').addEventListener('click', () => {
+            this.clearFilters();
+        });
     }
     
     async loadStats() {

@@ -103,15 +103,36 @@ class ZoologApp {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            // Check if focus is on an input element
+            const activeElement = document.activeElement;
+            const isInputFocused = activeElement && (
+                activeElement.tagName === 'INPUT' || 
+                activeElement.tagName === 'SELECT' || 
+                activeElement.tagName === 'TEXTAREA'
+            );
+            
             if (e.key === 'Escape') {
                 this.closePost();
             }
+            
             if (this.currentPost) {
                 if (e.key === 'ArrowLeft') {
                     this.navigatePost('prev');
                 }
                 if (e.key === 'ArrowRight') {
                     this.navigatePost('next');
+                }
+                
+                // Add j/k shortcuts when not focused on input elements
+                if (!isInputFocused) {
+                    if (e.key === 'j') {
+                        e.preventDefault();
+                        this.navigatePost('next'); // j goes to later post
+                    }
+                    if (e.key === 'k') {
+                        e.preventDefault();
+                        this.navigatePost('prev'); // k goes to earlier post
+                    }
                 }
             }
         });
@@ -259,6 +280,7 @@ class ZoologApp {
             
             this.currentPost = data;
             this.renderPost();
+            this.highlightCurrentPost();
             this.showPostViewer();
             
         } catch (error) {
@@ -326,6 +348,7 @@ class ZoologApp {
         const viewer = document.getElementById('post-viewer');
         viewer.style.display = 'none';
         this.currentPost = null;
+        this.clearPostHighlight();
         
         document.body.style.overflow = '';
     }
@@ -434,6 +457,35 @@ class ZoologApp {
     
     hideLoading() {
         document.getElementById('loading').style.display = 'none';
+    }
+    
+    highlightCurrentPost() {
+        if (!this.currentPost) return;
+        
+        // Clear previous highlights
+        this.clearPostHighlight();
+        
+        // Find and highlight the current post in the list
+        const postElement = document.querySelector(`[data-post-id="${this.currentPost.post.id}"]`);
+        if (postElement) {
+            postElement.classList.add('active');
+            
+            // Scroll the post into view if it's not visible
+            const postsList = document.getElementById('posts-list');
+            const postsListRect = postsList.getBoundingClientRect();
+            const postRect = postElement.getBoundingClientRect();
+            
+            if (postRect.top < postsListRect.top || postRect.bottom > postsListRect.bottom) {
+                postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }
+    
+    clearPostHighlight() {
+        const activePost = document.querySelector('.post-item.active');
+        if (activePost) {
+            activePost.classList.remove('active');
+        }
     }
 }
 

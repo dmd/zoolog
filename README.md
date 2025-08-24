@@ -6,6 +6,7 @@ This system compiles family journal entries into organized books in HTML, TXT, a
 ## Directory Structure
 - `posts/` - Contains individual journal entries as .txt files, each with a header date line
 - `monthly/` - Monthly compilation files (YYYY-MM.txt format)
+- `web/` - Web interface for browsing and searching journal entries
 - Individual category files: `AHNS.html`, `AHNS.pdf`, `AHNS.txt`, `J.html`, `J.pdf`, `J.txt`, `US.html`, `US.pdf`, `US.txt`
 - **Decade books**: `book-2013-2019.pdf` (US + AHNS), `book-2020-YYYY.pdf` (US + J, where YYYY is current year)
 - Combined book: `book.pdf` (all categories)
@@ -116,3 +117,34 @@ Removes all generated files and directories.
 - **Chronological order**: Maintained through YYYY-MM-DD filename prefixes and sorted processing
 - **PDF generation**: Uses WeasyPrint for covers and content (8"×10" page dimensions)
 - **Decade handling**: Adapts to current year for future decades without hardcoding
+
+## Web Interface
+
+The `web/` directory contains a Flask-based web interface for browsing and searching journal entries.
+
+### Components
+- **`app.py`** - Flask web server with search, filtering, and post viewing APIs
+- **`indexer.py`** - Creates SQLite database with full-text search from journal entries
+- **`templates/index.html`** - Single-page web application frontend
+- **`static/`** - CSS and JavaScript for the web interface
+- **`zoolog.db`** - SQLite database with posts and full-text search index
+
+### Features
+- **Timeline visualization** - Monthly post counts by category
+- **Full-text search** - Search across all post content with highlighting
+- **Category filtering** - Filter by AHNS, J, or US categories
+- **Date range filtering** - View posts within specific date ranges
+- **Post navigation** - Browse between posts with prev/next within search context
+
+### Usage
+
+#### Start the web server
+```bash
+cd web
+./app.py
+```
+
+The web interface will be available at `http://localhost:8000`
+
+#### Index/reindex posts
+The reindexer is run by make_omnibus.

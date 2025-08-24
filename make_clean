@@ -1,4 +1,4 @@
 #!/bin/bash
 
-rm -rf US.* J.* AHNS.* book*.pdf build monthly
+rm -rf US.* J.* AHNS.* book*.pdf build monthly web/zoolog.db web/__pycache__
 echo "Cleaned all generated files"

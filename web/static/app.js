@@ -2,13 +2,17 @@
 
 class ZoologApp {
     constructor() {
+        // Check URL parameters for initial limit
+        const urlParams = new URLSearchParams(window.location.search);
+        const limitParam = urlParams.get('limit');
+        
         this.currentQuery = {
             search: '',
             category: '',
             start_date: '',
             end_date: '',
             offset: 0,
-            limit: 200
+            limit: limitParam ? parseInt(limitParam) : 200
         };
         this.posts = [];
         this.totalPosts = 0;
@@ -444,7 +448,7 @@ class ZoologApp {
             start_date: '',
             end_date: '',
             offset: 0,
-            limit: 200
+            limit: limitParam ? parseInt(limitParam) : 200
         };
         
         this.loadPosts(true);

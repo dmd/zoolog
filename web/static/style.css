@@ -56,9 +56,17 @@ body {
   margin-bottom: 1rem;
 }
 
+.search-row {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
 .search-box {
   position: relative;
-  margin-bottom: 1rem;
+  flex: 1;
+  min-width: 200px;
 }
 
 .search-box input {
@@ -105,7 +113,7 @@ body {
   display: flex;
   gap: 1rem;
   align-items: end;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .filter-group {
@@ -424,9 +432,15 @@ button.active {
     padding: 1rem;
   }
   
-  .filters {
+  .search-row {
     flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filters {
+    flex-direction: row;
     gap: 0.5rem;
+    flex-wrap: wrap;
   }
   
   .filter-group {

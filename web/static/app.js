@@ -14,6 +14,8 @@ class ZoologApp {
         this.totalPosts = 0;
         this.currentPost = null;
         this.isLoading = false;
+        this.selectedSuggestionIndex = -1;
+        this.suggestions = [];
         
         this.init();
     }
@@ -36,6 +38,26 @@ class ZoologApp {
                 this.loadPosts(true);
                 this.showSearchSuggestions(e.target.value);
             }, 300);
+        });
+        
+        // Search input keyboard navigation
+        searchInput.addEventListener('keydown', (e) => {
+            if (this.suggestions.length === 0) return;
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.selectedSuggestionIndex = Math.min(this.selectedSuggestionIndex + 1, this.suggestions.length - 1);
+                this.highlightSuggestion();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.selectedSuggestionIndex = Math.max(this.selectedSuggestionIndex - 1, -1);
+                this.highlightSuggestion();
+            } else if (e.key === 'Enter' && this.selectedSuggestionIndex >= 0) {
+                e.preventDefault();
+                this.selectSuggestion(this.suggestions[this.selectedSuggestionIndex]);
+            } else if (e.key === 'Escape') {
+                this.hideSuggestions();
+            }
         });
         
         // Filters
@@ -327,6 +349,8 @@ class ZoologApp {
             const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`);
             const suggestions = await response.json();
             
+            this.suggestions = suggestions;
+            this.selectedSuggestionIndex = -1;
             this.renderSuggestions(suggestions);
         } catch (error) {
             console.error('Error loading suggestions:', error);
@@ -342,17 +366,14 @@ class ZoologApp {
             return;
         }
         
-        suggestions.forEach(suggestion => {
+        suggestions.forEach((suggestion, index) => {
             const element = document.createElement('div');
             element.className = 'suggestion';
             element.textContent = suggestion;
+            element.dataset.index = index;
             
             element.addEventListener('click', () => {
-                document.getElementById('search-input').value = suggestion;
-                this.currentQuery.search = suggestion;
-                this.currentQuery.offset = 0;
-                this.loadPosts(true);
-                this.hideSuggestions();
+                this.selectSuggestion(suggestion);
             });
             
             suggestionsEl.appendChild(element);
@@ -363,6 +384,29 @@ class ZoologApp {
     
     hideSuggestions() {
         document.getElementById('search-suggestions').style.display = 'none';
+        this.suggestions = [];
+        this.selectedSuggestionIndex = -1;
+    }
+    
+    highlightSuggestion() {
+        const suggestionsEl = document.getElementById('search-suggestions');
+        const suggestionElements = suggestionsEl.querySelectorAll('.suggestion');
+        
+        // Remove previous selection
+        suggestionElements.forEach(el => el.classList.remove('selected'));
+        
+        // Highlight current selection
+        if (this.selectedSuggestionIndex >= 0) {
+            suggestionElements[this.selectedSuggestionIndex].classList.add('selected');
+        }
+    }
+    
+    selectSuggestion(suggestion) {
+        document.getElementById('search-input').value = suggestion;
+        this.currentQuery.search = suggestion;
+        this.currentQuery.offset = 0;
+        this.loadPosts(true);
+        this.hideSuggestions();
     }
     
     clearFilters() {

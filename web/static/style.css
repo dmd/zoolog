@@ -96,7 +96,8 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
-.suggestion:hover {
+.suggestion:hover,
+.suggestion.selected {
   background: var(--bg-color);
 }
 

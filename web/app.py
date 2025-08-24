@@ -156,14 +156,14 @@ def api_posts():
         params.append(end_date)
     
     if search:
-        # Use FTS for search, sorted by date descending
+        # Use FTS for search, sorted by date ascending
         cursor.execute('''
             SELECT posts.*, posts_fts.rank
             FROM posts_fts
             JOIN posts ON posts.id = posts_fts.rowid
             WHERE posts_fts MATCH ?
             {} 
-            ORDER BY date DESC
+            ORDER BY date ASC
             LIMIT ? OFFSET ?
         '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
         [search] + params + [limit, offset])
@@ -173,7 +173,7 @@ def api_posts():
         cursor.execute(f'''
             SELECT * FROM posts
             {where_clause}
-            ORDER BY date DESC
+            ORDER BY date ASC
             LIMIT ? OFFSET ?
         ''', params + [limit, offset])
     
@@ -256,20 +256,7 @@ def api_post(post_id):
     
     # Get adjacent posts within search context
     if search:
-        # Previous post in search results (newer date)
-        cursor.execute('''
-            SELECT posts.id, posts.title, posts.date 
-            FROM posts_fts
-            JOIN posts ON posts.id = posts_fts.rowid
-            WHERE posts_fts MATCH ? AND posts.date > ?
-            {} 
-            ORDER BY posts.date ASC
-            LIMIT 1
-        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
-        [search, row['date']] + params)
-        prev_post = cursor.fetchone()
-        
-        # Next post in search results (older date)
+        # Previous post in search results (earlier date)
         cursor.execute('''
             SELECT posts.id, posts.title, posts.date 
             FROM posts_fts
@@ -277,6 +264,19 @@ def api_post(post_id):
             WHERE posts_fts MATCH ? AND posts.date < ?
             {} 
             ORDER BY posts.date DESC
+            LIMIT 1
+        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
+        [search, row['date']] + params)
+        prev_post = cursor.fetchone()
+        
+        # Next post in search results (later date)
+        cursor.execute('''
+            SELECT posts.id, posts.title, posts.date 
+            FROM posts_fts
+            JOIN posts ON posts.id = posts_fts.rowid
+            WHERE posts_fts MATCH ? AND posts.date > ?
+            {} 
+            ORDER BY posts.date ASC
             LIMIT 1
         '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
         [search, row['date']] + params)
@@ -288,20 +288,20 @@ def api_post(post_id):
         else:
             where_clause = 'WHERE'
         
-        # Previous post (newer date)
-        cursor.execute(f'''
-            SELECT id, title, date FROM posts 
-            {where_clause} date > ?
-            ORDER BY date ASC 
-            LIMIT 1
-        ''', params + [row['date']])
-        prev_post = cursor.fetchone()
-        
-        # Next post (older date)
+        # Previous post (earlier date)
         cursor.execute(f'''
             SELECT id, title, date FROM posts 
             {where_clause} date < ?
             ORDER BY date DESC 
+            LIMIT 1
+        ''', params + [row['date']])
+        prev_post = cursor.fetchone()
+        
+        # Next post (later date)
+        cursor.execute(f'''
+            SELECT id, title, date FROM posts 
+            {where_clause} date > ?
+            ORDER BY date ASC 
             LIMIT 1
         ''', params + [row['date']])
         next_post = cursor.fetchone()

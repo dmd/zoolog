@@ -439,6 +439,10 @@ class ZoologApp {
         document.getElementById('start-date').value = '';
         document.getElementById('end-date').value = '';
         
+        // Get limit from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const limitParam = urlParams.get('limit');
+        
         this.currentQuery = {
             search: '',
             category: '',

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the "photosondate" Shortcut, collect results into a directory,
-# detect extensions, then resize+convert everything to JPEG (500px wide).
+# detect extensions, then resize+convert everything to JPEG.
 # Usage: get-date-photos <YYYY-MM-DD>
 
 set -euo pipefail
@@ -17,10 +17,8 @@ sc_name="photosondate"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# Run the Shortcut and dump output
 shortcuts run "$sc_name" -i "$date_in" -o "$tmp/out"
 
-# Collect all image files to process
 files=()
 if [[ -d "$tmp/out" ]]; then
   # Multiple outputs - collect files from directory
@@ -34,19 +32,14 @@ else
   files=("$tmp/out")
 fi
 
-# Process all files with consolidated logic
 counter=1
 for src in "${files[@]}"; do
-  # Create predictable filename: YYYY-MM-DD-N.jpg
   dest="$tmp/${date_in}-${counter}.jpg"
-  
-  # Resize and convert to JPEG
-  magick "$src" -resize 1000x "$dest"
-  
+  magick "$src" -resize 1000x "$dest" &
   ((counter++))
 done
+wait
 
-# Now move processed images to final destination
 mkdir -p "$outdir"
 mv "$tmp"/${date_in}-*.jpg "$outdir"/
 

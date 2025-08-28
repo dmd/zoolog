@@ -2,15 +2,19 @@
 
 class ZoologApp {
     constructor() {
-        // Check URL parameters for initial limit
+        // Check URL parameters for initial values
         const urlParams = new URLSearchParams(window.location.search);
         const limitParam = urlParams.get('limit');
+        const startDateParam = urlParams.get('start_date');
+        const endDateParam = urlParams.get('end_date');
+        const categoryParam = urlParams.get('category');
+        const searchParam = urlParams.get('search');
         
         this.currentQuery = {
-            search: '',
-            category: '',
-            start_date: '',
-            end_date: '',
+            search: searchParam || '',
+            category: categoryParam || '',
+            start_date: startDateParam || '',
+            end_date: endDateParam || '',
             offset: 0,
             limit: limitParam ? parseInt(limitParam) : 200
         };
@@ -20,12 +24,17 @@ class ZoologApp {
         this.isLoading = false;
         this.selectedSuggestionIndex = -1;
         this.suggestions = [];
+        this.currentPhotos = [];
+        this.currentPhotoIndex = 0;
+        this.loadedPhotosDates = new Set();
+        this.photosByDate = new Map(); // Store photos by date
         
         this.init();
     }
     
     init() {
         this.bindEvents();
+        this.populateFormFromURLParams();
         this.loadStats();
         this.loadPosts();
     }
@@ -116,10 +125,25 @@ class ZoologApp {
             );
             
             if (e.key === 'Escape') {
-                this.closePost();
+                // Check if lightbox is open first
+                if (document.getElementById('photo-lightbox').style.display === 'flex') {
+                    this.closeLightbox();
+                } else {
+                    this.closePost();
+                }
             }
             
-            if (this.currentPost) {
+            // Check if lightbox is open for arrow key navigation
+            if (document.getElementById('photo-lightbox').style.display === 'flex') {
+                if (e.key === 'ArrowLeft') {
+                    this.navigateLightbox('prev');
+                    e.preventDefault();
+                }
+                if (e.key === 'ArrowRight') {
+                    this.navigateLightbox('next');
+                    e.preventDefault();
+                }
+            } else if (this.currentPost) {
                 if (e.key === 'ArrowLeft') {
                     this.navigatePost('prev');
                 }
@@ -152,6 +176,43 @@ class ZoologApp {
         document.querySelector('h1').addEventListener('click', () => {
             this.clearFilters();
         });
+        
+        
+        document.getElementById('lightbox-close').addEventListener('click', () => {
+            this.closeLightbox();
+        });
+        
+        document.getElementById('lightbox-prev').addEventListener('click', () => {
+            this.navigateLightbox('prev');
+        });
+        
+        document.getElementById('lightbox-next').addEventListener('click', () => {
+            this.navigateLightbox('next');
+        });
+        
+        // Close lightbox on background click
+        document.getElementById('photo-lightbox').addEventListener('click', (e) => {
+            if (e.target.id === 'photo-lightbox') {
+                this.closeLightbox();
+            }
+        });
+        
+    }
+    
+    populateFormFromURLParams() {
+        // Populate form fields with values from URL parameters
+        if (this.currentQuery.search) {
+            document.getElementById('search-input').value = this.currentQuery.search;
+        }
+        if (this.currentQuery.category) {
+            document.getElementById('category-filter').value = this.currentQuery.category;
+        }
+        if (this.currentQuery.start_date) {
+            document.getElementById('start-date').value = this.currentQuery.start_date;
+        }
+        if (this.currentQuery.end_date) {
+            document.getElementById('end-date').value = this.currentQuery.end_date;
+        }
     }
     
     async loadStats() {
@@ -159,9 +220,13 @@ class ZoologApp {
             const response = await fetch('/api/stats');
             const stats = await response.json();
             
-            // Initialize date pickers with ISO-8601 format
-            document.getElementById('start-date').value = stats.date_range.start;
-            document.getElementById('end-date').value = stats.date_range.end;
+            // Initialize date pickers with ISO-8601 format only if not set by URL parameters
+            if (!this.currentQuery.start_date) {
+                document.getElementById('start-date').value = stats.date_range.start;
+            }
+            if (!this.currentQuery.end_date) {
+                document.getElementById('end-date').value = stats.date_range.end;
+            }
         } catch (error) {
             console.error('Error loading stats:', error);
         }
@@ -288,6 +353,10 @@ class ZoologApp {
             this.renderPost();
             this.highlightCurrentPost();
             this.showPostViewer();
+            
+            // Load photos for this date asynchronously (don't await)
+            const postDate = data.post.date.split('T')[0]; // Extract YYYY-MM-DD from ISO datetime
+            this.loadPhotos(postDate);
             
         } catch (error) {
             console.error('Error loading post:', error);
@@ -495,6 +564,150 @@ class ZoologApp {
         const activePost = document.querySelector('.post-item.active');
         if (activePost) {
             activePost.classList.remove('active');
+        }
+    }
+    
+    async loadPhotos(date) {
+        if (this.loadedPhotosDates.has(date)) {
+            // Photos for this date already loaded, just show them
+            this.showPhotos(date);
+            return;
+        }
+        
+        // Show photos panel and loading state
+        this.showPhotosLoading(date);
+        
+        try {
+            const response = await fetch(`/api/photos/${date}`);
+            const data = await response.json();
+            
+            if (data.photos && data.photos.length > 0) {
+                const photos = data.photos.map(filename => ({
+                    filename: filename,
+                    url: `/photos/${date}/${filename}`,
+                    date: date
+                }));
+                this.photosByDate.set(date, photos);
+                this.currentPhotos = photos;
+                this.loadedPhotosDates.add(date);
+                this.renderPhotos(date);
+            } else {
+                this.photosByDate.set(date, []);
+                this.currentPhotos = [];
+                this.loadedPhotosDates.add(date);
+                this.showPhotosEmpty();
+            }
+        } catch (error) {
+            console.error('Error loading photos:', error);
+            this.showPhotosEmpty();
+        }
+    }
+    
+    showPhotosLoading(date) {
+        const photosPanel = document.getElementById('photos-panel');
+        const photosLoading = document.getElementById('photos-loading');
+        const photosList = document.getElementById('photos-list');
+        const photosEmpty = document.getElementById('photos-empty');
+        
+        photosPanel.style.display = 'block';
+        photosLoading.style.display = 'flex';
+        photosList.innerHTML = '';
+        photosEmpty.style.display = 'none';
+        
+        // Add class to main content for grid layout
+        document.querySelector('.main-content').classList.add('with-photos');
+    }
+    
+    showPhotos(date) {
+        const photosPanel = document.getElementById('photos-panel');
+        
+        photosPanel.style.display = 'block';
+        
+        // Add class to main content for grid layout
+        document.querySelector('.main-content').classList.add('with-photos');
+        
+        // Set current photos to the photos for this specific date
+        this.currentPhotos = this.photosByDate.get(date) || [];
+        this.renderPhotos(date);
+    }
+    
+    renderPhotos(date) {
+        const photosLoading = document.getElementById('photos-loading');
+        const photosList = document.getElementById('photos-list');
+        const photosEmpty = document.getElementById('photos-empty');
+        
+        photosLoading.style.display = 'none';
+        photosEmpty.style.display = 'none';
+        
+        photosList.innerHTML = '';
+        
+        this.currentPhotos.forEach((photo, index) => {
+            const img = document.createElement('img');
+            img.src = photo.url;
+            img.alt = `Photo from ${date}`;
+            img.className = 'photo-thumbnail';
+            img.dataset.index = index;
+            
+            img.addEventListener('click', () => {
+                this.showLightbox(index);
+            });
+            
+            photosList.appendChild(img);
+        });
+    }
+    
+    showPhotosEmpty() {
+        const photosLoading = document.getElementById('photos-loading');
+        const photosList = document.getElementById('photos-list');
+        const photosEmpty = document.getElementById('photos-empty');
+        
+        photosLoading.style.display = 'none';
+        photosList.innerHTML = '';
+        photosEmpty.style.display = 'flex';
+    }
+    
+    hidePhotos() {
+        const photosPanel = document.getElementById('photos-panel');
+        photosPanel.style.display = 'none';
+        
+        // Remove class from main content
+        document.querySelector('.main-content').classList.remove('with-photos');
+    }
+    
+    showLightbox(photoIndex) {
+        if (photoIndex < 0 || photoIndex >= this.currentPhotos.length) return;
+        
+        this.currentPhotoIndex = photoIndex;
+        const photo = this.currentPhotos[photoIndex];
+        
+        const lightbox = document.getElementById('photo-lightbox');
+        const lightboxImage = document.getElementById('lightbox-image');
+        const prevBtn = document.getElementById('lightbox-prev');
+        const nextBtn = document.getElementById('lightbox-next');
+        
+        lightboxImage.src = photo.url;
+        lightboxImage.alt = `Photo from ${photo.date}`;
+        
+        prevBtn.disabled = photoIndex === 0;
+        nextBtn.disabled = photoIndex === this.currentPhotos.length - 1;
+        
+        lightbox.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    closeLightbox() {
+        const lightbox = document.getElementById('photo-lightbox');
+        lightbox.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    
+    navigateLightbox(direction) {
+        const newIndex = direction === 'prev' 
+            ? this.currentPhotoIndex - 1 
+            : this.currentPhotoIndex + 1;
+            
+        if (newIndex >= 0 && newIndex < this.currentPhotos.length) {
+            this.showLightbox(newIndex);
         }
     }
 }

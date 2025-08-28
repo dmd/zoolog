@@ -13,6 +13,7 @@ import os
 import sqlite3
 import quopri
 import re
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request, send_file
@@ -24,6 +25,8 @@ app = Flask(__name__)
 DB_PATH = Path(__file__).parent / 'zoolog.db'
 POSTS_DIR = Path(__file__).parent.parent / 'posts'
 PANDOC_CSS_PATH = Path(__file__).parent.parent / 'pandoc.css'
+PHOTOS_DIR = Path(__file__).parent / 'photos'
+GET_DATE_PHOTOS_SCRIPT = Path(__file__).parent / 'get-date-photos'
 
 def get_db():
     """Get database connection"""
@@ -440,6 +443,100 @@ def api_stats():
         },
         'yearly_counts': yearly_counts
     })
+
+@app.route('/api/photos/<date>')
+def api_photos(date):
+    """Get photos for a specific date"""
+    try:
+        # Validate date format
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    
+    date_photos_dir = PHOTOS_DIR / date
+    
+    # Check if photos already exist for this date
+    if date_photos_dir.exists() and any(date_photos_dir.glob('*.jpg')):
+        # Photos exist, return them
+        photo_files = [f.name for f in date_photos_dir.glob('*.jpg')]
+        photo_files.sort()  # Sort for consistent ordering
+        
+        return jsonify({
+            'date': date,
+            'photos': photo_files,
+            'cached': True
+        })
+    
+    # Photos don't exist, run get-date-photos script
+    try:
+        # Run the script in the background
+        result = subprocess.run(
+            [str(GET_DATE_PHOTOS_SCRIPT), date],
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            text=True,
+            timeout=60  # 60 second timeout
+        )
+        
+        if result.returncode == 0:
+            # Script succeeded, get the photos
+            if date_photos_dir.exists():
+                photo_files = [f.name for f in date_photos_dir.glob('*.jpg')]
+                photo_files.sort()
+                
+                return jsonify({
+                    'date': date,
+                    'photos': photo_files,
+                    'cached': False
+                })
+            else:
+                return jsonify({
+                    'date': date,
+                    'photos': [],
+                    'cached': False
+                })
+        else:
+            # Script failed or no photos found
+            return jsonify({
+                'date': date,
+                'photos': [],
+                'cached': False
+            })
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'date': date,
+            'photos': [],
+            'error': 'Photo fetch timeout',
+            'cached': False
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'date': date,
+            'photos': [],
+            'error': f'Error fetching photos: {str(e)}',
+            'cached': False
+        }), 500
+
+@app.route('/photos/<date>/<filename>')
+def serve_photo(date, filename):
+    """Serve photo files"""
+    try:
+        # Validate date format
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+    
+    # Security: ensure filename is just a filename (no path traversal)
+    if '/' in filename or '\\' in filename or filename.startswith('.'):
+        return jsonify({'error': 'Invalid filename'}), 400
+    
+    photo_path = PHOTOS_DIR / date / filename
+    
+    if not photo_path.exists():
+        return jsonify({'error': 'Photo not found'}), 404
+    
+    return send_file(photo_path, mimetype='image/jpeg')
 
 if __name__ == '__main__':
     if not DB_PATH.exists():

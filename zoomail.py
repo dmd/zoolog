@@ -52,7 +52,7 @@ for item in items:
     output = "\n".join(("# " + subject.replace("Re: ", ""), "", cleanedbody))
 
     filename = POSTS + "/" + stripsubject + "-" + headerdate + ".txt"
-    print("writing " + filename)
+    print(f"writing '{filename}'")
     open(filename, "w").write(output)
     pop.dele(mid)
     print("deleted email " + str(mid))

@@ -18,6 +18,7 @@ process_month() {
     local files="$2"
     # Use xargs to avoid command line length issues
     echo $files | tr ' ' '\n' | xargs cat > "monthly/${m}.txt"
+    python3 -m quopri -d "monthly/${m}.txt" | sponge "monthly/${m}.txt"
 }
 
 for month in "${!month_files[@]}"; do

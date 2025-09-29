@@ -432,6 +432,7 @@ button.active {
 /* Photos Panel */
 .photos-panel {
   grid-column: 1 / -1;
+  grid-row: 2;
   background: white;
   border-radius: 8px;
   box-shadow: var(--shadow);
@@ -592,13 +593,13 @@ button.active {
   }
   
   .main-content.with-photos {
-    grid-template-rows: 1fr 140px;
+    grid-template-rows: 1fr 130px;
   }
-  
+
   .photos-panel {
-    max-height: 140px;
+    max-height: 130px;
   }
-  
+
   .photo-thumbnail {
     width: 120px;
     height: 120px;

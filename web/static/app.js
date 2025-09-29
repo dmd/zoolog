@@ -26,9 +26,11 @@ class ZoologApp {
         this.suggestions = [];
         this.currentPhotos = [];
         this.currentPhotoIndex = 0;
-        this.loadedPhotosDates = new Set();
+        this.loadedPhotosDates = []; // Track order of cached dates for LRU
         this.photosByDate = new Map(); // Store photos by date
-        
+        this.currentPhotoFetch = null; // Track current photo fetch request
+        this.MAX_CACHED_DATES = 50; // Limit cache to 50 dates to prevent memory leak
+
         this.init();
     }
     
@@ -46,10 +48,17 @@ class ZoologApp {
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                this.currentQuery.search = e.target.value;
+                const searchValue = e.target.value.trim();
+                this.currentQuery.search = searchValue;
                 this.currentQuery.offset = 0;
                 this.loadPosts(true);
-                this.showSearchSuggestions(e.target.value);
+
+                // Only show suggestions if there's a search value
+                if (searchValue) {
+                    this.showSearchSuggestions(searchValue);
+                } else {
+                    this.hideSuggestions();
+                }
             }, 300);
         });
         
@@ -196,7 +205,7 @@ class ZoologApp {
                 this.closeLightbox();
             }
         });
-        
+
     }
     
     populateFormFromURLParams() {
@@ -218,18 +227,73 @@ class ZoologApp {
     async loadStats() {
         try {
             const response = await fetch('/api/stats');
-            const stats = await response.json();
-            
-            // Initialize date pickers with ISO-8601 format only if not set by URL parameters
-            if (!this.currentQuery.start_date) {
-                document.getElementById('start-date').value = stats.date_range.start;
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
+            const stats = await response.json();
+
+            // Validate and initialize date pickers
+            const startDate = stats.date_range?.start;
+            const endDate = stats.date_range?.end;
+
+            // Set start date: URL param, or stats value, or fallback
+            if (!this.currentQuery.start_date) {
+                if (startDate && this.isValidDate(startDate)) {
+                    document.getElementById('start-date').value = startDate.split('T')[0];
+                } else {
+                    const tenYearsAgo = new Date();
+                    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+                    document.getElementById('start-date').value = tenYearsAgo.toISOString().split('T')[0];
+                }
+            } else if (!this.isValidDate(this.currentQuery.start_date)) {
+                // Invalid URL parameter - reset it
+                console.warn('Invalid start_date URL parameter, resetting to default');
+                this.currentQuery.start_date = '';
+                if (startDate && this.isValidDate(startDate)) {
+                    document.getElementById('start-date').value = startDate.split('T')[0];
+                }
+            }
+
+            // Set end date: URL param, or stats value, or fallback
             if (!this.currentQuery.end_date) {
-                document.getElementById('end-date').value = stats.date_range.end;
+                if (endDate && this.isValidDate(endDate)) {
+                    document.getElementById('end-date').value = endDate.split('T')[0];
+                } else {
+                    const today = new Date();
+                    document.getElementById('end-date').value = today.toISOString().split('T')[0];
+                }
+            } else if (!this.isValidDate(this.currentQuery.end_date)) {
+                // Invalid URL parameter - reset it
+                console.warn('Invalid end_date URL parameter, resetting to default');
+                this.currentQuery.end_date = '';
+                if (endDate && this.isValidDate(endDate)) {
+                    document.getElementById('end-date').value = endDate.split('T')[0];
+                }
             }
         } catch (error) {
             console.error('Error loading stats:', error);
+            // Fallback: set date pickers to reasonable defaults if stats fail
+            if (!this.currentQuery.start_date || !this.isValidDate(this.currentQuery.start_date)) {
+                const tenYearsAgo = new Date();
+                tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+                document.getElementById('start-date').value = tenYearsAgo.toISOString().split('T')[0];
+                this.currentQuery.start_date = '';
+            }
+            if (!this.currentQuery.end_date || !this.isValidDate(this.currentQuery.end_date)) {
+                const today = new Date();
+                document.getElementById('end-date').value = today.toISOString().split('T')[0];
+                this.currentQuery.end_date = '';
+            }
         }
+    }
+
+    isValidDate(dateString) {
+        // Check if date string matches YYYY-MM-DD format and is a valid date
+        const regex = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
+        if (!regex.test(dateString)) return false;
+
+        const date = new Date(dateString);
+        return date instanceof Date && !isNaN(date.getTime());
     }
     
     
@@ -269,12 +333,12 @@ class ZoologApp {
     
     handleScroll() {
         if (this.isLoading || this.posts.length >= this.totalPosts) return;
-        
+
         const postsList = document.getElementById('posts-list');
         const scrollTop = postsList.scrollTop;
         const scrollHeight = postsList.scrollHeight;
         const clientHeight = postsList.clientHeight;
-        
+
         // Load more when user scrolls within 200px of bottom of posts list
         if (scrollTop + clientHeight >= scrollHeight - 200) {
             this.loadMorePosts();
@@ -367,16 +431,47 @@ class ZoologApp {
     
     highlightSearchTerms(html, searchTerms) {
         if (!searchTerms || searchTerms.length === 0) return html;
-        
-        let highlightedHtml = html;
+
+        // Create a DOM parser to properly handle HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
         searchTerms.forEach(term => {
             if (term.length > 1) {
-                const regex = new RegExp(`(\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b)`, 'gi');
-                highlightedHtml = highlightedHtml.replace(regex, '<mark class="search-highlight">$1</mark>');
+                // Escape special regex characters in the search term
+                const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\b(${escapedTerm})\\b`, 'gi');
+
+                // Walk through all text nodes
+                const walker = document.createTreeWalker(
+                    doc.body,
+                    NodeFilter.SHOW_TEXT,
+                    null
+                );
+
+                const textNodes = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    // Skip text nodes inside script, style, or mark tags
+                    const parent = node.parentElement;
+                    if (parent && !['SCRIPT', 'STYLE', 'MARK'].includes(parent.tagName)) {
+                        textNodes.push(node);
+                    }
+                }
+
+                // Replace matches in text nodes
+                textNodes.forEach(textNode => {
+                    const text = textNode.textContent;
+                    if (regex.test(text)) {
+                        const span = document.createElement('span');
+                        span.innerHTML = text.replace(regex, '<mark class="search-highlight">$1</mark>');
+                        textNode.replaceWith(...span.childNodes);
+                    }
+                });
             }
         });
-        
-        return highlightedHtml;
+
+        return doc.body.innerHTML;
     }
     
     renderPost() {
@@ -424,7 +519,9 @@ class ZoologApp {
         viewer.style.display = 'none';
         this.currentPost = null;
         this.clearPostHighlight();
-        
+        // Don't hide photos - let them persist for browsing
+        // User can close photos panel separately if needed
+
         document.body.style.overflow = '';
     }
     
@@ -507,16 +604,14 @@ class ZoologApp {
         this.hideSuggestions();
     }
     
-    clearFilters() {
+    async clearFilters() {
         document.getElementById('search-input').value = '';
         document.getElementById('category-filter').value = '';
-        document.getElementById('start-date').value = '';
-        document.getElementById('end-date').value = '';
-        
+
         // Get limit from URL params
         const urlParams = new URLSearchParams(window.location.search);
         const limitParam = urlParams.get('limit');
-        
+
         this.currentQuery = {
             search: '',
             category: '',
@@ -525,7 +620,14 @@ class ZoologApp {
             offset: 0,
             limit: limitParam ? parseInt(limitParam) : 200
         };
-        
+
+        // Reload stats to reset date range pickers
+        await this.loadStats();
+
+        // Sync currentQuery with the date picker values after loadStats
+        this.currentQuery.start_date = document.getElementById('start-date').value;
+        this.currentQuery.end_date = document.getElementById('end-date').value;
+
         this.loadPosts(true);
     }
     
@@ -540,22 +642,28 @@ class ZoologApp {
     
     highlightCurrentPost() {
         if (!this.currentPost) return;
-        
+
         // Clear previous highlights
         this.clearPostHighlight();
-        
+
         // Find and highlight the current post in the list
         const postElement = document.querySelector(`[data-post-id="${this.currentPost.post.id}"]`);
         if (postElement) {
             postElement.classList.add('active');
-            
-            // Scroll the post into view if it's not visible
+
+            // Scroll the post into view if it's not visible, but preserve relative position
             const postsList = document.getElementById('posts-list');
             const postsListRect = postsList.getBoundingClientRect();
             const postRect = postElement.getBoundingClientRect();
-            
+
+            // Only scroll if the post is not visible in the viewport
             if (postRect.top < postsListRect.top || postRect.bottom > postsListRect.bottom) {
-                postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Calculate the scroll position to center the post
+                const scrollTop = postsList.scrollTop;
+                const elementOffsetTop = postElement.offsetTop;
+                const centerOffset = (postsList.clientHeight - postElement.clientHeight) / 2;
+
+                postsList.scrollTop = elementOffsetTop - centerOffset;
             }
         }
     }
@@ -567,39 +675,90 @@ class ZoologApp {
         }
     }
     
+    cachePhotos(date, photos) {
+        // Implement LRU cache eviction when limit is reached
+        if (this.loadedPhotosDates.length >= this.MAX_CACHED_DATES) {
+            // Remove the oldest cached date (first in array)
+            const oldestDate = this.loadedPhotosDates.shift();
+            this.photosByDate.delete(oldestDate);
+        }
+
+        // Remove date from array if it already exists (to update its position)
+        const existingIndex = this.loadedPhotosDates.indexOf(date);
+        if (existingIndex !== -1) {
+            this.loadedPhotosDates.splice(existingIndex, 1);
+        }
+
+        // Add to end of array (most recently used)
+        this.photosByDate.set(date, photos);
+        this.loadedPhotosDates.push(date);
+    }
+
     async loadPhotos(date) {
-        if (this.loadedPhotosDates.has(date)) {
+        if (this.loadedPhotosDates.includes(date)) {
             // Photos for this date already loaded, just show them
             this.showPhotos(date);
             return;
         }
-        
+
+        // Cancel any pending photo fetch
+        if (this.currentPhotoFetch) {
+            this.currentPhotoFetch.abort();
+        }
+
         // Show photos panel and loading state
         this.showPhotosLoading(date);
-        
+
+        // Create an AbortController for this fetch
+        const controller = new AbortController();
+        this.currentPhotoFetch = controller;
+
         try {
-            const response = await fetch(`/api/photos/${date}`);
+            const response = await fetch(`/api/photos/${date}`, {
+                signal: controller.signal
+            });
+
+            // Check if this request was aborted while waiting
+            if (this.currentPhotoFetch !== controller) {
+                return; // Another request has taken over
+            }
+
             const data = await response.json();
-            
+
+            // Double-check we're still the active request
+            if (this.currentPhotoFetch !== controller) {
+                return;
+            }
+
             if (data.photos && data.photos.length > 0) {
                 const photos = data.photos.map(filename => ({
                     filename: filename,
                     url: `/photos/${date}/${filename}`,
                     date: date
                 }));
-                this.photosByDate.set(date, photos);
+                this.cachePhotos(date, photos);
                 this.currentPhotos = photos;
-                this.loadedPhotosDates.add(date);
                 this.renderPhotos(date);
             } else {
-                this.photosByDate.set(date, []);
+                this.cachePhotos(date, []);
                 this.currentPhotos = [];
-                this.loadedPhotosDates.add(date);
                 this.showPhotosEmpty();
             }
         } catch (error) {
+            // Ignore abort errors
+            if (error.name === 'AbortError') {
+                return;
+            }
             console.error('Error loading photos:', error);
-            this.showPhotosEmpty();
+            // Only show error if this is still the active request
+            if (this.currentPhotoFetch === controller) {
+                this.showPhotosEmpty();
+            }
+        } finally {
+            // Clear the current fetch reference if it's still this controller
+            if (this.currentPhotoFetch === controller) {
+                this.currentPhotoFetch = null;
+            }
         }
     }
     

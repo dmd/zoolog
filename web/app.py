@@ -8,6 +8,10 @@
 # ///
 """
 Zoolog Web Interface - Flask backend
+
+Security Notes:
+- All endpoints are GET/read-only, so CSRF protection is not required
+- If POST/PUT/DELETE endpoints are added in the future, implement CSRF protection
 """
 import os
 import sqlite3
@@ -33,6 +37,31 @@ def get_db():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
+
+def sanitize_fts_query(query):
+    """Sanitize FTS search query to prevent injection attacks"""
+    if not query:
+        return query
+
+    # Remove potentially dangerous FTS operators and syntax
+    # Allow only alphanumeric, spaces, and basic punctuation
+    # Remove FTS special characters: " * ( ) : - AND OR NOT NEAR
+    dangerous_chars = ['*', '(', ')', ':', '"', '-']
+    sanitized = query
+
+    for char in dangerous_chars:
+        sanitized = sanitized.replace(char, ' ')
+
+    # Remove FTS operator keywords by replacing with spaces
+    operators = ['AND', 'OR', 'NOT', 'NEAR']
+    for op in operators:
+        sanitized = sanitized.replace(f' {op} ', ' ')
+        sanitized = sanitized.replace(f' {op.lower()} ', ' ')
+
+    # Collapse multiple spaces and trim
+    sanitized = ' '.join(sanitized.split())
+
+    return sanitized
 
 def process_post_content(content):
     """Process post content like make_omnibus: decode quoted-printable and convert markdown to HTML"""
@@ -135,8 +164,22 @@ def api_posts():
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     search = request.args.get('search', '')
-    limit = int(request.args.get('limit', 50))
-    offset = int(request.args.get('offset', 0))
+
+    # Validate and sanitize limit parameter
+    try:
+        limit = int(request.args.get('limit', 50))
+        # Cap limit to prevent DoS and ensure it's positive
+        limit = max(1, min(limit, 1000))
+    except (ValueError, TypeError):
+        limit = 50
+
+    # Validate and sanitize offset parameter
+    try:
+        offset = int(request.args.get('offset', 0))
+        # Ensure offset is non-negative
+        offset = max(0, offset)
+    except (ValueError, TypeError):
+        offset = 0
     
     # Build query
     conditions = []
@@ -168,26 +211,48 @@ def api_posts():
             params.append(end_date)
     
     if search:
+        # Sanitize search query to prevent FTS injection
+        sanitized_search = sanitize_fts_query(search)
+        if not sanitized_search:
+            # Return empty results if search is empty after sanitization
+            conn.close()
+            return jsonify({
+                'posts': [],
+                'total': 0,
+                'limit': limit,
+                'offset': offset
+            })
+
         # Use FTS for search, sorted by date ascending
-        cursor.execute('''
-            SELECT posts.*, posts_fts.rank
-            FROM posts_fts
-            JOIN posts ON posts.id = posts_fts.rowid
-            WHERE posts_fts MATCH ?
-            {} 
-            ORDER BY date ASC
-            LIMIT ? OFFSET ?
-        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
-        [search] + params + [limit, offset])
+        if conditions:
+            where_clause = 'AND ' + ' AND '.join(conditions)
+            query = '''
+                SELECT posts.*, posts_fts.rank
+                FROM posts_fts
+                JOIN posts ON posts.id = posts_fts.rowid
+                WHERE posts_fts MATCH ?
+                ''' + where_clause + '''
+                ORDER BY date ASC
+                LIMIT ? OFFSET ?
+            '''
+        else:
+            query = '''
+                SELECT posts.*, posts_fts.rank
+                FROM posts_fts
+                JOIN posts ON posts.id = posts_fts.rowid
+                WHERE posts_fts MATCH ?
+                ORDER BY date ASC
+                LIMIT ? OFFSET ?
+            '''
+        cursor.execute(query, [sanitized_search] + params + [limit, offset])
     else:
         # Regular query
-        where_clause = 'WHERE ' + ' AND '.join(conditions) if conditions else ''
-        cursor.execute(f'''
-            SELECT * FROM posts
-            {where_clause}
-            ORDER BY date ASC
-            LIMIT ? OFFSET ?
-        ''', params + [limit, offset])
+        if conditions:
+            where_clause = 'WHERE ' + ' AND '.join(conditions)
+            query = 'SELECT * FROM posts ' + where_clause + ' ORDER BY date ASC LIMIT ? OFFSET ?'
+        else:
+            query = 'SELECT * FROM posts ORDER BY date ASC LIMIT ? OFFSET ?'
+        cursor.execute(query, params + [limit, offset])
     
     posts = []
     for row in cursor.fetchall():
@@ -205,17 +270,29 @@ def api_posts():
     
     # Get total count
     if search:
-        cursor.execute('''
-            SELECT COUNT(*)
-            FROM posts_fts
-            JOIN posts ON posts.id = posts_fts.rowid
-            WHERE posts_fts MATCH ?
-            {}
-        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
-        [search] + params)
+        if conditions:
+            where_clause = 'AND ' + ' AND '.join(conditions)
+            count_query = '''
+                SELECT COUNT(*)
+                FROM posts_fts
+                JOIN posts ON posts.id = posts_fts.rowid
+                WHERE posts_fts MATCH ?
+                ''' + where_clause
+        else:
+            count_query = '''
+                SELECT COUNT(*)
+                FROM posts_fts
+                JOIN posts ON posts.id = posts_fts.rowid
+                WHERE posts_fts MATCH ?
+            '''
+        cursor.execute(count_query, [sanitized_search] + params)
     else:
-        where_clause = 'WHERE ' + ' AND '.join(conditions) if conditions else ''
-        cursor.execute(f'SELECT COUNT(*) FROM posts {where_clause}', params)
+        if conditions:
+            where_clause = 'WHERE ' + ' AND '.join(conditions)
+            count_query = 'SELECT COUNT(*) FROM posts ' + where_clause
+        else:
+            count_query = 'SELECT COUNT(*) FROM posts'
+        cursor.execute(count_query, params)
     
     total = cursor.fetchone()[0]
     
@@ -277,54 +354,78 @@ def api_post(post_id):
     
     # Get adjacent posts within search context
     if search:
-        # Previous post in search results (earlier date)
-        cursor.execute('''
-            SELECT posts.id, posts.title, posts.date 
-            FROM posts_fts
-            JOIN posts ON posts.id = posts_fts.rowid
-            WHERE posts_fts MATCH ? AND posts.date < ?
-            {} 
-            ORDER BY posts.date DESC
-            LIMIT 1
-        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
-        [search, row['date']] + params)
-        prev_post = cursor.fetchone()
-        
-        # Next post in search results (later date)
-        cursor.execute('''
-            SELECT posts.id, posts.title, posts.date 
-            FROM posts_fts
-            JOIN posts ON posts.id = posts_fts.rowid
-            WHERE posts_fts MATCH ? AND posts.date > ?
-            {} 
-            ORDER BY posts.date ASC
-            LIMIT 1
-        '''.format('AND ' + ' AND '.join(conditions) if conditions else ''),
-        [search, row['date']] + params)
-        next_post = cursor.fetchone()
+        # Sanitize search query to prevent FTS injection
+        sanitized_search = sanitize_fts_query(search)
+
+        if sanitized_search:
+            # Previous post in search results (earlier date)
+            if conditions:
+                where_clause = 'AND ' + ' AND '.join(conditions)
+                prev_query = '''
+                    SELECT posts.id, posts.title, posts.date
+                    FROM posts_fts
+                    JOIN posts ON posts.id = posts_fts.rowid
+                    WHERE posts_fts MATCH ? AND posts.date < ?
+                    ''' + where_clause + '''
+                    ORDER BY posts.date DESC
+                    LIMIT 1
+                '''
+            else:
+                prev_query = '''
+                    SELECT posts.id, posts.title, posts.date
+                    FROM posts_fts
+                    JOIN posts ON posts.id = posts_fts.rowid
+                    WHERE posts_fts MATCH ? AND posts.date < ?
+                    ORDER BY posts.date DESC
+                    LIMIT 1
+                '''
+            cursor.execute(prev_query, [sanitized_search, row['date']] + params)
+            prev_post = cursor.fetchone()
+
+            # Next post in search results (later date)
+            if conditions:
+                where_clause = 'AND ' + ' AND '.join(conditions)
+                next_query = '''
+                    SELECT posts.id, posts.title, posts.date
+                    FROM posts_fts
+                    JOIN posts ON posts.id = posts_fts.rowid
+                    WHERE posts_fts MATCH ? AND posts.date > ?
+                    ''' + where_clause + '''
+                    ORDER BY posts.date ASC
+                    LIMIT 1
+                '''
+            else:
+                next_query = '''
+                    SELECT posts.id, posts.title, posts.date
+                    FROM posts_fts
+                    JOIN posts ON posts.id = posts_fts.rowid
+                    WHERE posts_fts MATCH ? AND posts.date > ?
+                    ORDER BY posts.date ASC
+                    LIMIT 1
+                '''
+            cursor.execute(next_query, [sanitized_search, row['date']] + params)
+            next_post = cursor.fetchone()
+        else:
+            # If search is empty after sanitization, no navigation
+            prev_post = None
+            next_post = None
     else:
         # Regular navigation within filtered results
         if conditions:
-            where_clause = 'WHERE ' + ' AND '.join(conditions) + ' AND'
+            where_clause = 'WHERE ' + ' AND '.join(conditions) + ' AND date < ?'
+            prev_query = 'SELECT id, title, date FROM posts ' + where_clause + ' ORDER BY date DESC LIMIT 1'
         else:
-            where_clause = 'WHERE'
-        
-        # Previous post (earlier date)
-        cursor.execute(f'''
-            SELECT id, title, date FROM posts 
-            {where_clause} date < ?
-            ORDER BY date DESC 
-            LIMIT 1
-        ''', params + [row['date']])
+            prev_query = 'SELECT id, title, date FROM posts WHERE date < ? ORDER BY date DESC LIMIT 1'
+        cursor.execute(prev_query, params + [row['date']])
         prev_post = cursor.fetchone()
-        
+
         # Next post (later date)
-        cursor.execute(f'''
-            SELECT id, title, date FROM posts 
-            {where_clause} date > ?
-            ORDER BY date ASC 
-            LIMIT 1
-        ''', params + [row['date']])
+        if conditions:
+            where_clause = 'WHERE ' + ' AND '.join(conditions) + ' AND date > ?'
+            next_query = 'SELECT id, title, date FROM posts ' + where_clause + ' ORDER BY date ASC LIMIT 1'
+        else:
+            next_query = 'SELECT id, title, date FROM posts WHERE date > ? ORDER BY date ASC LIMIT 1'
+        cursor.execute(next_query, params + [row['date']])
         next_post = cursor.fetchone()
     
     conn.close()
@@ -475,7 +576,7 @@ def api_photos(date):
             cwd=Path(__file__).parent,
             capture_output=True,
             text=True,
-            timeout=60  # 60 second timeout
+            timeout=15  # 15 second timeout for better UX
         )
         
         if result.returncode == 0:
@@ -526,16 +627,31 @@ def serve_photo(date, filename):
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
         return jsonify({'error': 'Invalid date format'}), 400
-    
+
     # Security: ensure filename is just a filename (no path traversal)
     if '/' in filename or '\\' in filename or filename.startswith('.'):
         return jsonify({'error': 'Invalid filename'}), 400
-    
-    photo_path = PHOTOS_DIR / date / filename
-    
+
+    # Only allow alphanumeric, dash, underscore, and dot in filename
+    if not all(c.isalnum() or c in '.-_' for c in filename):
+        return jsonify({'error': 'Invalid filename'}), 400
+
+    # Construct path and resolve to prevent path traversal
+    photo_path = (PHOTOS_DIR / date / filename).resolve()
+
+    # Ensure the resolved path is within PHOTOS_DIR
+    try:
+        photo_path.relative_to(PHOTOS_DIR.resolve())
+    except ValueError:
+        return jsonify({'error': 'Invalid path'}), 403
+
     if not photo_path.exists():
         return jsonify({'error': 'Photo not found'}), 404
-    
+
+    # Verify it's a file, not a directory
+    if not photo_path.is_file():
+        return jsonify({'error': 'Invalid resource'}), 403
+
     return send_file(photo_path, mimetype='image/jpeg')
 
 if __name__ == '__main__':

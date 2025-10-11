@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run
+#!/usr/bin/env -S uv run --python-preference only-system
 # /// script
 # dependencies = ["weasyprint"]
 # ///
@@ -7,9 +7,10 @@ import sys
 from weasyprint import HTML, CSS
 from weasyprint.text.fonts import FontConfiguration
 
+
 def generate_cover(title, subtitle, output_path):
     """Generate a PDF cover with proper centering."""
-    
+
     # HTML template with CSS
     html_content = f"""
     <!DOCTYPE html>
@@ -59,21 +60,22 @@ def generate_cover(title, subtitle, output_path):
     </body>
     </html>
     """
-    
+
     # Generate PDF
     font_config = FontConfiguration()
     html_doc = HTML(string=html_content)
     html_doc.write_pdf(output_path, font_config=font_config)
     print(f"Generated {output_path}")
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: generate_cover.py <title> <subtitle> <output_path>")
         print("Use empty string '' for no subtitle")
         sys.exit(1)
-    
+
     title = sys.argv[1]
-    subtitle = sys.argv[2] if sys.argv[2] != '' else None
+    subtitle = sys.argv[2] if sys.argv[2] != "" else None
     output_path = sys.argv[3]
-    
+
     generate_cover(title, subtitle, output_path)

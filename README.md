@@ -124,7 +124,6 @@ The `web/` directory contains a Flask-based web interface for browsing and searc
 
 ### Components
 - **`app.py`** - Flask web server with search, filtering, and post viewing APIs
-- **`indexer.py`** - Creates SQLite database with full-text search from journal entries
 - **`templates/index.html`** - Single-page web application frontend
 - **`static/`** - CSS and JavaScript for the web interface
 - **`zoolog.db`** - SQLite database with posts and full-text search index
@@ -146,5 +145,3 @@ cd web
 
 The web interface will be available at `http://localhost:8000`
 
-#### Index/reindex posts
-The reindexer is run by make_omnibus.

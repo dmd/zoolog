@@ -4,6 +4,7 @@
 # dependencies = [
 #     "flask>=3.0.0",
 #     "markdown>=3.5.1",
+#     "tqdm>=4.66.0",
 # ]
 # ///
 """
@@ -22,6 +23,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request, send_file
 import markdown
+from tqdm import tqdm
 
 app = Flask(__name__)
 
@@ -213,9 +215,10 @@ def index_posts():
     indexed_count = 0
     error_count = 0
 
-    print(f"Indexing posts from {POSTS_DIR}...")
+    # Get list of files for progress bar
+    txt_files = list(POSTS_DIR.glob('*.txt'))
 
-    for txt_file in POSTS_DIR.glob('*.txt'):
+    for txt_file in tqdm(txt_files, desc="Indexing posts", unit="post"):
         try:
             with open(txt_file, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -240,14 +243,13 @@ def index_posts():
                 ))
                 indexed_count += 1
 
-                if indexed_count % 100 == 0:
-                    print(f"Indexed {indexed_count} posts...")
+                if indexed_count % 1000 == 0:
                     conn.commit()
             else:
                 error_count += 1
 
         except Exception as e:
-            print(f"Error processing {txt_file.name}: {e}")
+            tqdm.write(f"Error processing {txt_file.name}: {e}")
             error_count += 1
 
     conn.commit()

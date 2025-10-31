@@ -1,6 +1,6 @@
 # Zoolog Web Interface
 
-A Flask-based web application for browsing and searching family journal entries stored in a SQLite database.
+A Flask-based web application for browsing and searching family journal entries stored in an in-memory SQLite database that is rebuilt on each startup.
 
 ## Features
 
@@ -15,15 +15,16 @@ A Flask-based web application for browsing and searching family journal entries 
 - **Search result highlighting** in post content
 - **Lightbox photo viewer** with navigation and full-screen viewing
 - **URL parameter support** for direct linking to filtered views
+- **In-memory database** that reindexes all posts at startup for a clean state every run
 
 ## Running the Application
 
-1. Ensure you have a SQLite database (`zoolog.db`) created by running `indexer.py`
+1. Ensure the `posts/` directory one level up from `web/` contains the `.txt` source files.
 2. Start the Flask server:
    ```bash
-   python app.py
+   uv run app.py
    ```
-3. Open http://localhost:8000 in your browser
+3. Open http://localhost:8000 in your browser. The app automatically reindexes all posts into an in-memory SQLite database before serving requests.
 
 ## API Endpoints
 

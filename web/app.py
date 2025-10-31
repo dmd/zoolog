@@ -28,7 +28,8 @@ from tqdm import tqdm
 app = Flask(__name__)
 
 # Configuration
-DB_PATH = Path(__file__).parent / 'zoolog.db'
+DB_URI = "file:zoolog?mode=memory&cache=shared"
+_PERSISTENT_CONN = None
 POSTS_DIR = Path(__file__).parent.parent / 'posts'
 PANDOC_CSS_PATH = Path(__file__).parent.parent / 'pandoc.css'
 PHOTOS_DIR = Path(__file__).parent / 'photos'
@@ -36,9 +37,18 @@ GET_DATE_PHOTOS_SCRIPT = Path(__file__).parent / 'get-date-photos'
 
 def get_db():
     """Get database connection"""
-    conn = sqlite3.connect(str(DB_PATH))
+    ensure_persistent_connection()
+    conn = sqlite3.connect(DB_URI, uri=True)
     conn.row_factory = sqlite3.Row
     return conn
+
+def ensure_persistent_connection():
+    """Ensure the shared in-memory database stays alive for the process lifetime"""
+    global _PERSISTENT_CONN
+    if _PERSISTENT_CONN is None:
+        _PERSISTENT_CONN = sqlite3.connect(DB_URI, uri=True, check_same_thread=False)
+        _PERSISTENT_CONN.row_factory = sqlite3.Row
+    return _PERSISTENT_CONN
 
 def clean_text_for_search(text):
     """Clean text for search indexing by removing punctuation and normalizing"""
@@ -120,9 +130,8 @@ def extract_post_info(filename, content):
         'day': post_date.day
     }
 
-def create_database(db_path):
+def create_database(conn):
     """Create the posts database with FTS support"""
-    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     # Main posts table
@@ -194,18 +203,15 @@ def create_database(db_path):
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_year_month ON posts(year, month)')
 
     conn.commit()
-    return conn
 
 def index_posts():
     """Index all posts in the posts directory"""
     if not POSTS_DIR.exists():
         print(f"Posts directory not found: {POSTS_DIR}")
         return False
-
-    # Create web directory if it doesn't exist
-    DB_PATH.parent.mkdir(exist_ok=True)
-
-    conn = create_database(str(DB_PATH))
+    
+    conn = ensure_persistent_connection()
+    create_database(conn)
     cursor = conn.cursor()
 
     # Clear existing data
@@ -263,8 +269,6 @@ def index_posts():
 
     cursor.execute('SELECT category, COUNT(*) FROM posts GROUP BY category ORDER BY category')
     category_stats = cursor.fetchall()
-
-    conn.close()
 
     print(f"\nIndexing complete!")
     print(f"Total posts indexed: {total_posts}")

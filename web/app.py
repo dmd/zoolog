@@ -14,11 +14,14 @@ Security Notes:
 - All endpoints are GET/read-only, so CSRF protection is not required
 - If POST/PUT/DELETE endpoints are added in the future, implement CSRF protection
 """
+import atexit
 import os
 import sqlite3
 import quopri
 import re
+import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request, send_file
@@ -33,7 +36,13 @@ _PERSISTENT_CONN = None
 POSTS_DIR = Path(__file__).parent.parent / 'posts'
 PANDOC_CSS_PATH = Path(__file__).parent.parent / 'pandoc.css'
 PHOTOS_DIR = Path(__file__).parent / 'photos'
-GET_DATE_PHOTOS_SCRIPT = Path(__file__).parent / 'get-date-photos'
+SHORTCUT_NAME = "photosondate"
+
+class PhotoFetchError(Exception):
+    """Base exception for photo fetching issues."""
+
+class PhotoFetchTimeout(PhotoFetchError):
+    """Raised when the photo fetching process times out."""
 
 def get_db():
     """Get database connection"""
@@ -49,6 +58,82 @@ def ensure_persistent_connection():
         _PERSISTENT_CONN = sqlite3.connect(DB_URI, uri=True, check_same_thread=False)
         _PERSISTENT_CONN.row_factory = sqlite3.Row
     return _PERSISTENT_CONN
+
+def cleanup_photos_dir():
+    """Remove cached photos on shutdown so each run starts fresh."""
+    try:
+        if PHOTOS_DIR.exists():
+            shutil.rmtree(PHOTOS_DIR)
+    except Exception:
+        pass
+
+atexit.register(cleanup_photos_dir)
+
+def fetch_photos_for_date(date_str, timeout=15):
+    """Fetch photos for the given date using the Shortcuts app and resize them with ImageMagick."""
+    PHOTOS_DIR.mkdir(exist_ok=True)
+    destination_dir = PHOTOS_DIR / date_str
+    destination_dir.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        shortcuts_output = tmp_path / "out"
+
+        try:
+            result = subprocess.run(
+                ["shortcuts", "run", SHORTCUT_NAME, "-i", date_str, "-o", str(shortcuts_output)],
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+        except FileNotFoundError as exc:
+            raise PhotoFetchError("The 'shortcuts' command is not available on this system.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise PhotoFetchTimeout("Timed out while running the Shortcuts automation.") from exc
+
+        if result.returncode != 0:
+            stderr = result.stderr.strip() if result.stderr else "Unknown error from Shortcuts."
+            raise PhotoFetchError(f"Shortcuts automation failed: {stderr}")
+
+        if shortcuts_output.is_dir():
+            candidates = [p for p in shortcuts_output.iterdir() if p.is_file()]
+        elif shortcuts_output.exists():
+            candidates = [shortcuts_output]
+        else:
+            candidates = []
+
+        photos = [c for c in candidates if c.suffix.lower() != ".mov"]
+        if not photos:
+            return []
+
+        converted_files = []
+        for idx, src in enumerate(sorted(photos), start=1):
+            dest = tmp_path / f"{date_str}-{idx}.jpg"
+            try:
+                convert = subprocess.run(
+                    ["magick", str(src), "-resize", "1000x", str(dest)],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+            except FileNotFoundError as exc:
+                raise PhotoFetchError("ImageMagick 'magick' command is required but was not found.") from exc
+            except subprocess.TimeoutExpired as exc:
+                raise PhotoFetchTimeout("Timed out while resizing photos with ImageMagick.") from exc
+
+            if convert.returncode != 0:
+                stderr = convert.stderr.strip() if convert.stderr else "Unknown ImageMagick error."
+                raise PhotoFetchError(f"ImageMagick conversion failed: {stderr}")
+
+            converted_files.append(dest)
+
+        final_names = []
+        for converted in sorted(converted_files):
+            final_path = destination_dir / converted.name
+            shutil.move(str(converted), final_path)
+            final_names.append(final_path.name)
+
+        return final_names
 
 def clean_text_for_search(text):
     """Clean text for search indexing by removing punctuation and normalizing"""
@@ -798,69 +883,46 @@ def api_photos(date):
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
     
     date_photos_dir = PHOTOS_DIR / date
-    
-    # Check if photos already exist for this date
-    if date_photos_dir.exists() and any(date_photos_dir.glob('*.jpg')):
-        # Photos exist, return them
-        photo_files = [f.name for f in date_photos_dir.glob('*.jpg')]
-        photo_files.sort()  # Sort for consistent ordering
-        
-        return jsonify({
-            'date': date,
-            'photos': photo_files,
-            'cached': True
-        })
-    
-    # Photos don't exist, run get-date-photos script
-    try:
-        # Run the script in the background
-        result = subprocess.run(
-            [str(GET_DATE_PHOTOS_SCRIPT), date],
-            cwd=Path(__file__).parent,
-            capture_output=True,
-            text=True,
-            timeout=15  # 15 second timeout for better UX
-        )
-        
-        if result.returncode == 0:
-            # Script succeeded, get the photos
-            if date_photos_dir.exists():
-                photo_files = [f.name for f in date_photos_dir.glob('*.jpg')]
-                photo_files.sort()
-                
-                return jsonify({
-                    'date': date,
-                    'photos': photo_files,
-                    'cached': False
-                })
-            else:
-                return jsonify({
-                    'date': date,
-                    'photos': [],
-                    'cached': False
-                })
-        else:
-            # Script failed or no photos found
+    cached = True
+
+    # Fetch photos if they are not already cached
+    if not (date_photos_dir.exists() and any(date_photos_dir.glob('*.jpg'))):
+        try:
+            fetch_photos_for_date(date)
+            cached = False
+        except PhotoFetchTimeout as exc:
             return jsonify({
                 'date': date,
                 'photos': [],
+                'error': str(exc),
                 'cached': False
-            })
-            
-    except subprocess.TimeoutExpired:
-        return jsonify({
-            'date': date,
-            'photos': [],
-            'error': 'Photo fetch timeout',
-            'cached': False
-        }), 500
-    except Exception as e:
-        return jsonify({
-            'date': date,
-            'photos': [],
-            'error': f'Error fetching photos: {str(e)}',
-            'cached': False
-        }), 500
+            }), 500
+        except PhotoFetchError as exc:
+            return jsonify({
+                'date': date,
+                'photos': [],
+                'error': str(exc),
+                'cached': False
+            }), 500
+        except Exception as exc:
+            return jsonify({
+                'date': date,
+                'photos': [],
+                'error': f'Unexpected error: {exc}',
+                'cached': False
+            }), 500
+    
+    # Gather photo filenames after ensuring directory exists
+    if date_photos_dir.exists():
+        photo_files = sorted(f.name for f in date_photos_dir.glob('*.jpg'))
+    else:
+        photo_files = []
+
+    return jsonify({
+        'date': date,
+        'photos': photo_files,
+        'cached': cached
+    })
 
 @app.route('/photos/<date>/<filename>')
 def serve_photo(date, filename):

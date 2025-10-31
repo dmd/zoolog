@@ -796,9 +796,14 @@ class ZoologApp {
         const photosEmpty = document.getElementById('photos-empty');
         
         photosLoading.style.display = 'none';
-        photosEmpty.style.display = 'none';
-        
         photosList.innerHTML = '';
+        
+        if (!this.currentPhotos || this.currentPhotos.length === 0) {
+            photosEmpty.style.display = 'flex';
+            return;
+        }
+
+        photosEmpty.style.display = 'none';
         
         this.currentPhotos.forEach((photo, index) => {
             const img = document.createElement('img');

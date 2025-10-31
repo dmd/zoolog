@@ -116,8 +116,8 @@ URL parameters automatically populate form fields and apply filters on page load
 - **Frontend**: Vanilla JavaScript with modern CSS Grid/Flexbox
 - **Database**: SQLite with FTS (Full-Text Search) extension
 - **Content Processing**: Markdown to HTML conversion with quoted-printable decoding
-- **Photo System**: Integration with `get-date-photos` script for fetching and caching photos
-- **Image Processing**: Automatic resizing to 500px width with JPEG conversion
+- **Photo System**: Built-in Shortcuts + ImageMagick pipeline for fetching and caching photos
+- **Image Processing**: Automatic resizing to 1000px width with JPEG conversion
 
 ## Search Interface
 
@@ -149,7 +149,7 @@ The application includes a seamless photo viewing experience:
 - **Optimized dimensions**: 160px panel height with 150px thumbnails and minimal padding for efficient space usage
 
 ### Photo Features
-- **Intelligent fetching**: Uses the `get-date-photos` script to fetch photos from external sources
+- **Intelligent fetching**: Calls the macOS Shortcuts automation directly from the app to pull photos on demand
 - **Thumbnail display**: 150px square thumbnails with hover effects
 - **Lightbox viewer**: Click any thumbnail to open full-screen lightbox with navigation
 - **Keyboard support**: Escape key closes lightbox, arrow keys navigate between photos
@@ -157,8 +157,9 @@ The application includes a seamless photo viewing experience:
 - **Error handling**: Graceful handling of missing photos or fetch failures
 
 ### Photo System Integration
-- **External script integration**: Seamlessly integrates with `get-date-photos YYYY-MM-DD` script
-- **Caching strategy**: Checks for existing photos before running external script
+- **Native automation**: Executes the `photosondate` Shortcuts automation and processes results with ImageMagick without external scripts
+- **Caching strategy**: Checks for existing photos before invoking the automation
+- **Ephemeral cache**: Automatically removes the cached photo directory when the server shuts down
 - **Image optimization**: All photos are resized and converted to JPEG format for optimal performance
 - **Secure serving**: Photo files are served with proper security validation
 

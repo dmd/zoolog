@@ -2,6 +2,9 @@
 
 A Flask-based web application for browsing and searching family journal entries stored in an in-memory SQLite database that is rebuilt on each startup.
 
+> [!WARNING]
+> Entirely vibe-coded, including this readme. Works great, though.
+
 ## Features
 
 - **Full-text search** with real-time suggestions and highlighting

@@ -8,3 +8,4 @@ zoomail.ini
 .claude
 .playwright-mcp
 .worktrees/
+__pycache__/

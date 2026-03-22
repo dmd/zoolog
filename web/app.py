@@ -19,6 +19,7 @@ import os
 import sqlite3
 import quopri
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -374,7 +375,7 @@ def sanitize_fts_query(query):
     # Remove potentially dangerous FTS operators and syntax
     # Allow only alphanumeric, spaces, and basic punctuation
     # Remove FTS special characters: " * ( ) : - AND OR NOT NEAR
-    dangerous_chars = ['*', '(', ')', ':', '"', '-']
+    dangerous_chars = ['*', '(', ')', ':', '"', '-', "'"]
     sanitized = query
 
     for char in dangerous_chars:
@@ -792,7 +793,11 @@ def api_post(post_id):
     
     # Add search context for highlighting
     if search:
-        result['search_terms'] = search.split()
+        # Extract search terms, handling quoted phrases
+        try:
+            result['search_terms'] = shlex.split(search)
+        except ValueError:
+            result['search_terms'] = search.replace('"', '').replace("'", '').split()
     
     return jsonify(result)
 

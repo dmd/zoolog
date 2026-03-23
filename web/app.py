@@ -23,6 +23,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import webbrowser
 from datetime import datetime, timedelta
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request, send_file
@@ -972,5 +973,6 @@ if __name__ == '__main__':
             print("Failed to index posts. Check that the posts directory exists.")
             exit(1)
         print("\nStarting Flask server on http://localhost:8000")
+        webbrowser.open('http://localhost:8000')
 
     app.run(debug=True, port=8000)

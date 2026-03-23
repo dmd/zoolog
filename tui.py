@@ -34,7 +34,7 @@ from textual.widgets.option_list import Option
 # Database helpers (adapted from web/app.py)
 # ---------------------------------------------------------------------------
 
-POSTS_DIR = Path(__file__).parent.parent / "posts"
+POSTS_DIR = Path(__file__).parent / "posts"
 DB_URI = "file:zoolog_tui?mode=memory&cache=shared"
 _PERSISTENT_CONN: sqlite3.Connection | None = None
 

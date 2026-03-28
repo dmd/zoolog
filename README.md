@@ -118,30 +118,40 @@ Removes all generated files and directories.
 - **PDF generation**: Uses WeasyPrint for covers and content (8"×10" page dimensions)
 - **Decade handling**: Adapts to current year for future decades without hardcoding
 
-## Web Interface
+## Viewers
+
+### Web Interface
 
 The `web/` directory contains a Flask-based web interface for browsing and searching journal entries.
 
-### Components
 - **`app.py`** - Flask web server with search, filtering, and post viewing APIs
 - **`templates/index.html`** - Single-page web application frontend
-- **`static/`** - CSS and JavaScript for the web interface
 - **`zoolog.db`** - SQLite database with posts and full-text search index
 
-### Features
-- **Timeline visualization** - Monthly post counts by category
-- **Full-text search** - Search across all post content with highlighting
-- **Category filtering** - Filter by AHNS, J, or US categories
-- **Date range filtering** - View posts within specific date ranges
-- **Post navigation** - Browse between posts with prev/next within search context
-
-### Usage
-
-#### Start the web server
 ```bash
-cd web
-./app.py
+cd web && ./app.py
 ```
 
-The web interface will be available at `http://localhost:8000`
+Available at `http://localhost:8000`
+
+### TUI (Terminal)
+
+`tui.py` is a Textual-based terminal interface for browsing entries.
+
+```bash
+./tui.py
+```
+
+Features: full-text search, category filtering, date range filtering, keyboard navigation (j/k), search highlighting.
+
+### Native macOS App
+
+The `native-viewer/` directory contains a SwiftUI macOS app for browsing entries with Photos integration.
+
+```bash
+cd native-viewer && ./build-app.sh
+open .build/Zoolog.app
+```
+
+Features: full-text search, category filtering, date range filtering, keyboard navigation (j/k), search highlighting, Photos integration (displays photos from your library matching entry dates).
 

@@ -47,17 +47,10 @@ struct WelcomeView: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
 
-                Button(action: { store.chooseDirectory() }) {
-                    Label("Open Posts Directory", systemImage: "folder")
-                        .font(.title3)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.teal)
-                .controlSize(.large)
-
-                Text("Select the folder containing your .txt journal files")
+                ProgressView()
+                Text(store.indexingProgress)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -78,9 +71,6 @@ struct MainView: View {
                     .frame(minWidth: 280, idealWidth: 350)
                 PostDetailPanel()
                     .frame(minWidth: 400)
-            }
-            if !store.photos.isEmpty || store.isLoadingPhotos {
-                PhotoStrip()
             }
             StatusBar()
         }
@@ -315,6 +305,8 @@ struct PostDetailPanel: View {
                             .padding(.bottom, 8)
 
                         PostContentView(content: post.content, searchTerms: searchTerms)
+
+                        PhotoGrid()
                     }
                     .padding(24)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -410,55 +402,38 @@ private extension Text {
     }
 }
 
-// MARK: - Photo Strip
+// MARK: - Photo Grid
 
-struct PhotoStrip: View {
+struct PhotoGrid: View {
     @EnvironmentObject var store: PostStore
 
+    private let columns = [GridItem(.adaptive(minimum: 140), spacing: 8)]
+
     var body: some View {
-        VStack(spacing: 0) {
+        if store.isLoadingPhotos {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Loading photos...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 16)
+        } else if !store.photos.isEmpty {
             Divider()
-            if store.isLoadingPhotos {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Loading photos...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                .padding(.vertical, 12)
+
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(Array(store.photos.enumerated()), id: \.offset) { index, image in
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                        .onTapGesture { store.openLightbox(at: index) }
+                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
                 }
-                .frame(height: 130)
-                .frame(maxWidth: .infinity)
-                .background(.bar)
-            } else if store.photos.isEmpty {
-                HStack {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .foregroundStyle(.tertiary)
-                    Text("No photos for this date")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(height: 60)
-                .frame(maxWidth: .infinity)
-                .background(.bar)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(store.photos.enumerated()), id: \.offset) { index, image in
-                            Image(nsImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 130, height: 130)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .contentShape(Rectangle())
-                                .onTapGesture { store.openLightbox(at: index) }
-                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                }
-                .frame(height: 146)
-                .background(.bar)
             }
         }
     }
@@ -468,6 +443,7 @@ struct PhotoStrip: View {
 
 struct LightboxView: View {
     @EnvironmentObject var store: PostStore
+    @FocusState private var lightboxFocused: Bool
 
     var body: some View {
         ZStack {
@@ -533,7 +509,10 @@ struct LightboxView: View {
                 }
             }
         }
+        .focusable()
+        .focused($lightboxFocused)
         .onExitCommand { store.closeLightbox() }
+        .onAppear { lightboxFocused = true }
     }
 }
 
@@ -549,7 +528,7 @@ struct StatusBar: View {
 
             Spacer()
 
-            ForEach(["A", "D", "AHNS", "J"], id: \.self) { cat in
+            ForEach(["A", "D", "AHNS", "J"], id: \.self) { (cat: String) in
                 if let count = store.stats.categories[cat] {
                     HStack(spacing: 4) {
                         Circle()

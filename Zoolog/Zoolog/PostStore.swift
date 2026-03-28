@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import Photos
 
 @MainActor
 final class PostStore: ObservableObject {
@@ -29,7 +30,7 @@ final class PostStore: ObservableObject {
     @Published var showLightbox = false
 
     // Posts directory
-    @Published var postsDirectory: URL?
+    @Published var postsDirectory: URL? = URL(fileURLWithPath: "/Users/dmd/Dropbox/dashare/zoolog/posts")
 
     private let database = Database()
     private var searchDebounce: AnyCancellable?
@@ -44,42 +45,7 @@ final class PostStore: ObservableObject {
                 Task { await self?.loadPosts() }
             }
 
-        // Try to auto-detect the posts directory
-        autoDetectPostsDirectory()
-    }
-
-    // MARK: - Directory selection
-
-    func autoDetectPostsDirectory() {
-        // Look for posts/ relative to the executable or common locations
-        let candidates = [
-            Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("posts"),
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("posts"),
-            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("zoolog/posts"),
-        ]
-
-        for candidate in candidates {
-            var isDir: ObjCBool = false
-            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir), isDir.boolValue {
-                postsDirectory = candidate
-                Task { await indexAndLoad() }
-                return
-            }
-        }
-    }
-
-    func chooseDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.message = "Select the 'posts' directory containing your Zoolog journal entries"
-        panel.prompt = "Select"
-
-        if panel.runModal() == .OK, let url = panel.url {
-            postsDirectory = url
-            Task { await indexAndLoad() }
-        }
+        Task { await indexAndLoad() }
     }
 
     // MARK: - Indexing
@@ -202,65 +168,45 @@ final class PostStore: ObservableObject {
     }
 
     private func fetchPhotos(for dateStr: String) async -> [NSImage] {
-        // Use macOS Shortcuts CLI to fetch photos (same approach as web app)
-        let shortcutName = "photosondate"
+        // Use PhotoKit to query Apple Photos directly
+        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        guard status == .authorized || status == .limited else { return [] }
 
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        guard let startDate = formatter.date(from: dateStr) else { return [] }
+        let endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!
 
-        let outputPath = tempDir.appendingPathComponent("out")
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.predicate = NSPredicate(
+            format: "creationDate >= %@ AND creationDate < %@ AND mediaType == %d",
+            startDate as NSDate, endDate as NSDate, PHAssetMediaType.image.rawValue
+        )
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
-        process.arguments = ["run", shortcutName, "-i", dateStr, "-o", outputPath.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        let assets = PHAsset.fetchAssets(with: fetchOptions)
+        guard assets.count > 0 else { return [] }
 
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return []
-        }
-
-        guard process.terminationStatus == 0 else { return [] }
-
-        // Collect output files
-        var candidates: [URL] = []
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: outputPath.path, isDirectory: &isDir) {
-            if isDir.boolValue {
-                candidates = (try? FileManager.default.contentsOfDirectory(at: outputPath, includingPropertiesForKeys: nil)) ?? []
-            } else {
-                candidates = [outputPath]
-            }
-        }
-
-        // Filter out videos, load as images
-        let photoFiles = candidates
-            .filter { $0.pathExtension.lowercased() != "mov" }
-            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+        let imageManager = PHImageManager.default()
+        let options = PHImageRequestOptions()
+        options.isSynchronous = true
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
 
         var images: [NSImage] = []
-        for file in photoFiles {
-            // Resize using sips (built-in macOS tool) as a fallback to ImageMagick
-            let resizedPath = tempDir.appendingPathComponent("\(file.lastPathComponent).jpg")
+        let targetSize = CGSize(width: 1000, height: 1000)
 
-            let sips = Process()
-            sips.executableURL = URL(fileURLWithPath: "/usr/bin/sips")
-            sips.arguments = ["-s", "format", "jpeg", "--resampleWidth", "1000", file.path, "--out", resizedPath.path]
-            sips.standardOutput = FileHandle.nullDevice
-            sips.standardError = FileHandle.nullDevice
-
-            do {
-                try sips.run()
-                sips.waitUntilExit()
-            } catch { continue }
-
-            let imageURL = sips.terminationStatus == 0 ? resizedPath : file
-            if let image = NSImage(contentsOf: imageURL) {
-                images.append(image)
+        assets.enumerateObjects { asset, _, _ in
+            imageManager.requestImage(
+                for: asset,
+                targetSize: targetSize,
+                contentMode: .aspectFit,
+                options: options
+            ) { image, _ in
+                if let image = image {
+                    images.append(NSImage(cgImage: image.cgImage(forProposedRect: nil, context: nil, hints: nil)!, size: image.size))
+                }
             }
         }
 

@@ -15,9 +15,9 @@ struct ZoologApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Navigation") {
-                Button("Previous Post") { store.selectPrevious() }
+                Button("Newer Post") { store.selectPrevious() }
                     .keyboardShortcut("k", modifiers: [])
-                Button("Next Post") { store.selectNext() }
+                Button("Older Post") { store.selectNext() }
                     .keyboardShortcut("j", modifiers: [])
                 Divider()
                 Button("Focus Search") { store.focusSearch = true }

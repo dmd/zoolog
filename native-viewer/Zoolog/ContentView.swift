@@ -1,5 +1,11 @@
 import SwiftUI
 
+extension View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition { transform(self) } else { self }
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var store: PostStore
 
@@ -175,7 +181,7 @@ struct PostListPanel: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .frame(height: 40)
 
             Divider()
 
@@ -277,10 +283,10 @@ struct PostDetailPanel: View {
                 // Navigation bar
                 HStack {
                     Button(action: { store.selectPrevious() }) {
-                        Label("Previous", systemImage: "chevron.left")
+                        Label("Newer", systemImage: "chevron.left")
                     }
                     .disabled(store.posts.first == store.selectedPost)
-                    .keyboardShortcut(.leftArrow, modifiers: [])
+                    .if(!store.showLightbox) { $0.keyboardShortcut(.leftArrow, modifiers: []) }
 
                     Spacer()
 
@@ -292,13 +298,13 @@ struct PostDetailPanel: View {
                     Spacer()
 
                     Button(action: { store.selectNext() }) {
-                        Label("Next", systemImage: "chevron.right")
+                        Label("Older", systemImage: "chevron.right")
                     }
                     .disabled(store.posts.last == store.selectedPost)
-                    .keyboardShortcut(.rightArrow, modifiers: [])
+                    .if(!store.showLightbox) { $0.keyboardShortcut(.rightArrow, modifiers: []) }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .frame(height: 40)
 
                 Divider()
 
@@ -508,6 +514,8 @@ struct LightboxView: View {
         .focusable()
         .focused($lightboxFocused)
         .onExitCommand { store.closeLightbox() }
+        .onKeyPress(.leftArrow) { store.previousPhoto(); return .handled }
+        .onKeyPress(.rightArrow) { store.nextPhoto(); return .handled }
         .onAppear { lightboxFocused = true }
     }
 }

@@ -23,6 +23,9 @@ final class PostStore: ObservableObject {
     @Published var startDate: Date = Calendar.current.date(byAdding: .year, value: -20, to: Date())!
     @Published var endDate: Date = Date()
 
+    // Font size
+    @Published var fontSize: CGFloat = 19
+
     // Photos
     @Published var photos: [NSImage] = []
     @Published var isLoadingPhotos = false
@@ -30,7 +33,19 @@ final class PostStore: ObservableObject {
     @Published var showLightbox = false
 
     // Posts directory
-    @Published var postsDirectory: URL? = URL(fileURLWithPath: "/Users/dmd/Dropbox/dashare/zoolog/posts")
+    @Published var postsDirectory: URL? = {
+        let candidates = [
+            "/Users/dmd/Dropbox/dashare/zoolog/posts",
+            "/Users/asw/Dropbox (Personal)/dashare/zoolog/posts",
+        ]
+        for path in candidates {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+                return URL(fileURLWithPath: path)
+            }
+        }
+        return URL(fileURLWithPath: candidates[0])
+    }()
 
     private let database = Database()
     private var searchDebounce: AnyCancellable?
@@ -95,12 +110,32 @@ final class PostStore: ObservableObject {
             search: searchText,
             category: selectedCategory.rawValue,
             startDate: fmt.string(from: startDate),
-            endDate: fmt.string(from: endDate)
+            endDate: fmt.string(from: endDate),
+            limit: 500,
+            offset: 0
         )
 
         posts = result.posts
         totalPosts = result.total
         isLoading = false
+    }
+
+    func loadMorePosts() async {
+        guard hasIndexed, posts.count < totalPosts else { return }
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+
+        let result = database.queryPosts(
+            search: searchText,
+            category: selectedCategory.rawValue,
+            startDate: fmt.string(from: startDate),
+            endDate: fmt.string(from: endDate),
+            limit: 500,
+            offset: posts.count
+        )
+
+        posts.append(contentsOf: result.posts)
     }
 
     func applyFilters() {

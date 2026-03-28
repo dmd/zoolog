@@ -36,8 +36,8 @@ enum Category: String, CaseIterable, Identifiable {
     case us = "US"
     case a = "A"
     case d = "D"
-    case ahns = "AHNS"
     case j = "J"
+    case ahns = "AHNS"
 
     var id: String { rawValue }
 

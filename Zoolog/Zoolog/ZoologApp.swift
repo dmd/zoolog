@@ -23,6 +23,14 @@ struct ZoologApp: App {
                 Button("Focus Search") { store.focusSearch = true }
                     .keyboardShortcut("/", modifiers: [])
             }
+            CommandMenu("View") {
+                Button("Increase Font Size") { store.fontSize = min(store.fontSize + 2, 30) }
+                    .keyboardShortcut("=", modifiers: .command)
+                Button("Decrease Font Size") { store.fontSize = max(store.fontSize - 2, 10) }
+                    .keyboardShortcut("-", modifiers: .command)
+                Button("Reset Font Size") { store.fontSize = 15 }
+                    .keyboardShortcut("0", modifiers: .command)
+            }
         }
     }
 }

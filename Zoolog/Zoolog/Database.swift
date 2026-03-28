@@ -147,7 +147,7 @@ final class Database {
             SELECT posts.* FROM posts_fts
             JOIN posts ON posts.id = posts_fts.rowid
             WHERE posts_fts MATCH ? \(wc)
-            ORDER BY date ASC LIMIT ? OFFSET ?
+            ORDER BY date DESC LIMIT ? OFFSET ?
             """
             countSql = """
             SELECT COUNT(*) FROM posts_fts
@@ -158,7 +158,7 @@ final class Database {
             countParams = [sanitized] + params
         } else {
             let wc = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
-            sql = "SELECT * FROM posts \(wc) ORDER BY date ASC LIMIT ? OFFSET ?"
+            sql = "SELECT * FROM posts \(wc) ORDER BY date DESC LIMIT ? OFFSET ?"
             countSql = "SELECT COUNT(*) FROM posts \(wc)"
             allParams = params + ["\(limit)", "\(offset)"]
             countParams = params
@@ -337,7 +337,14 @@ private func extractPostInfo(filename: String, content: String) -> PostInfo? {
 
     let lines = decoded.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n", omittingEmptySubsequences: false)
     let skip = (!lines.isEmpty && lines[0].hasPrefix("#")) ? 1 : 0
-    let body = lines.dropFirst(skip).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    let raw = lines.dropFirst(skip).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Unwrap hard line breaks: preserve \n\n as paragraph breaks,
+    // but join single \n (email-style hard wraps) with a space.
+    let body = raw
+        .replacingOccurrences(of: "\n\n", with: "\u{0000}")  // protect paragraph breaks
+        .replacingOccurrences(of: "\n", with: " ")            // unwrap hard wraps
+        .replacingOccurrences(of: "\u{0000}", with: "\n\n")   // restore paragraph breaks
 
     let title: String
     if !body.isEmpty {
@@ -369,30 +376,39 @@ private func cleanForSearch(_ text: String) -> String {
 }
 
 private func decodeQuotedPrintable(_ input: String) -> String {
-    var result = ""
-    var i = input.startIndex
-    while i < input.endIndex {
-        let ch = input[i]
-        if ch == "=" {
-            let next1 = input.index(i, offsetBy: 1, limitedBy: input.endIndex)
-            let next2 = input.index(i, offsetBy: 2, limitedBy: input.endIndex)
+    // Remove soft line breaks (=\r\n or =\n)
+    let cleaned = input
+        .replacingOccurrences(of: "=\r\n", with: "")
+        .replacingOccurrences(of: "=\n", with: "")
 
-            if let n1 = next1, let n2 = next2, n2 <= input.endIndex {
-                let hex = String(input[n1..<n2])
-                if hex == "\r\n" || input[n1] == "\n" {
-                    // Soft line break
-                    i = input[n1] == "\r" ? n2 : input.index(after: n1)
-                    continue
-                }
-                if let byte = UInt8(hex, radix: 16) {
-                    result.append(Character(UnicodeScalar(byte)))
-                    i = n2
-                    continue
-                }
-            }
+    // Decode =XX hex sequences as UTF-8 bytes
+    var bytes: [UInt8] = []
+    let chars = Array(cleaned.utf8)
+    var i = 0
+    while i < chars.count {
+        if chars[i] == 0x3D, // '='
+           i + 2 < chars.count,
+           let byte = hexPair(chars[i + 1], chars[i + 2]) {
+            bytes.append(byte)
+            i += 3
+        } else {
+            bytes.append(chars[i])
+            i += 1
         }
-        result.append(ch)
-        i = input.index(after: i)
     }
-    return result
+    return String(bytes: bytes, encoding: .utf8) ?? input
+}
+
+private func hexPair(_ a: UInt8, _ b: UInt8) -> UInt8? {
+    guard let hi = hexVal(a), let lo = hexVal(b) else { return nil }
+    return hi << 4 | lo
+}
+
+private func hexVal(_ c: UInt8) -> UInt8? {
+    switch c {
+    case 0x30...0x39: return c - 0x30       // 0-9
+    case 0x41...0x46: return c - 0x41 + 10  // A-F
+    case 0x61...0x66: return c - 0x61 + 10  // a-f
+    default: return nil
+    }
 }

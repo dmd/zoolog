@@ -204,6 +204,11 @@ struct PostListPanel: View {
                         PostRow(post: post, isSelected: store.selectedPost == post, searchText: store.searchText)
                             .tag(post)
                             .id(post.id)
+                            .onAppear {
+                                if post == store.posts.last {
+                                    Task { await store.loadMorePosts() }
+                                }
+                            }
                     }
                     .listStyle(.inset)
                     .onChange(of: store.selectedPost) {
@@ -221,6 +226,7 @@ struct PostListPanel: View {
 }
 
 struct PostRow: View {
+    @EnvironmentObject var store: PostStore
     let post: Post
     let isSelected: Bool
     let searchText: String
@@ -229,7 +235,7 @@ struct PostRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(post.displayDate)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: store.fontSize - 2, design: .monospaced))
                     .foregroundStyle(.secondary)
 
                 CategoryBadge(category: post.category)
@@ -238,7 +244,7 @@ struct PostRow: View {
             }
 
             Text(post.excerpt)
-                .font(.system(.caption, design: .serif))
+                .font(.system(size: store.fontSize - 2, design: .serif))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
@@ -305,12 +311,13 @@ struct PostDetailPanel: View {
                             .padding(.bottom, 8)
 
                         PostContentView(content: post.content, searchTerms: searchTerms)
-
-                        PhotoGrid()
                     }
                     .padding(24)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                // Photo shelf
+                PhotoShelf()
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "text.document")
@@ -337,105 +344,94 @@ struct PostDetailPanel: View {
 }
 
 struct PostContentView: View {
+    @EnvironmentObject var store: PostStore
     let content: String
     let searchTerms: [String]
 
+    private var paragraphs: [String] {
+        content.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     var body: some View {
-        if searchTerms.isEmpty {
-            Text(content)
-                .font(.system(.body, design: .serif))
-                .lineSpacing(6)
-                .textSelection(.enabled)
-        } else {
-            highlightedText
-                .font(.system(.body, design: .serif))
-                .lineSpacing(6)
-                .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: store.fontSize) {
+            ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, para in
+                if searchTerms.isEmpty {
+                    Text(LocalizedStringKey(para))
+                        .font(.system(size: store.fontSize, design: .serif))
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                } else {
+                    highlightedText(for: para)
+                        .font(.system(size: store.fontSize, design: .serif))
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                }
+            }
         }
     }
 
-    private var highlightedText: Text {
-        var result = Text("")
-        let lower = content.lowercased()
+    private func highlightedText(for text: String) -> Text {
+        var attr = AttributedString(text)
+        let lower = text.lowercased()
 
-        // Find all match ranges
-        var highlights: [(Range<String.Index>, String)] = []
         for term in searchTerms {
             let termLower = term.lowercased()
             var searchStart = lower.startIndex
             while let range = lower.range(of: termLower, range: searchStart..<lower.endIndex) {
-                highlights.append((range, String(content[range])))
+                let attrRange = attr.index(attr.startIndex, offsetByCharacters: text.distance(from: text.startIndex, to: range.lowerBound)) ..<
+                    attr.index(attr.startIndex, offsetByCharacters: text.distance(from: text.startIndex, to: range.upperBound))
+                attr[attrRange].backgroundColor = .yellow.opacity(0.4)
+                attr[attrRange].inlinePresentationIntent = .stronglyEmphasized
                 searchStart = range.upperBound
             }
         }
 
-        // Sort by start position
-        highlights.sort { $0.0.lowerBound < $1.0.lowerBound }
-
-        // Build attributed text
-        var current = content.startIndex
-        for (range, original) in highlights {
-            if range.lowerBound > current {
-                result = result + Text(content[current..<range.lowerBound])
-            }
-            if range.lowerBound >= current {
-                result = result + Text(original)
-                    .bold()
-                    .foregroundStyle(.black)
-                    .backgroundColor(.yellow.opacity(0.4))
-                current = range.upperBound
-            }
-        }
-        if current < content.endIndex {
-            result = result + Text(content[current..<content.endIndex])
-        }
-
-        return result
+        return Text(attr)
     }
 }
 
-private extension Text {
-    func backgroundColor(_ color: Color) -> Text {
-        // SwiftUI Text doesn't support background color inline,
-        // so we use a visual approximation with underline
-        self.underline(true, color: color)
-    }
-}
+// MARK: - Photo Shelf
 
-// MARK: - Photo Grid
-
-struct PhotoGrid: View {
+struct PhotoShelf: View {
     @EnvironmentObject var store: PostStore
 
-    private let columns = [GridItem(.adaptive(minimum: 140), spacing: 8)]
-
     var body: some View {
-        if store.isLoadingPhotos {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .scaleEffect(0.7)
-                Text("Loading photos...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 16)
-        } else if !store.photos.isEmpty {
+        VStack(spacing: 0) {
             Divider()
-                .padding(.vertical, 12)
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(Array(store.photos.enumerated()), id: \.offset) { index, image in
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 200)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .contentShape(Rectangle())
-                        .onTapGesture { store.openLightbox(at: index) }
-                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+            ZStack {
+                if store.photos.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.quaternary)
+                        Text("No photos")
+                            .font(.caption)
+                            .foregroundStyle(.quaternary)
+                    }
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(store.photos.enumerated()), id: \.offset) { index, image in
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 135, height: 135)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { store.openLightbox(at: index) }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    }
                 }
             }
+            .frame(height: 151)
+            .frame(maxWidth: .infinity)
         }
+        .background(.bar)
     }
 }
 
@@ -528,7 +524,7 @@ struct StatusBar: View {
 
             Spacer()
 
-            ForEach(["A", "D", "AHNS", "J"], id: \.self) { (cat: String) in
+            ForEach(["A", "D", "J", "AHNS"], id: \.self) { (cat: String) in
                 if let count = store.stats.categories[cat] {
                     HStack(spacing: 4) {
                         Circle()

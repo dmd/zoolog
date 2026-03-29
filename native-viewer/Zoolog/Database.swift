@@ -283,7 +283,21 @@ final class Database {
 
     private func sanitizeFTS(_ query: String) -> String {
         guard !query.isEmpty else { return "" }
-        var s = query
+        let parsed = parseSearchTerms(query)
+        return parsed.map { term in
+            if term.hasPrefix("\"") && term.hasSuffix("\"") {
+                // Quoted phrase — sanitize interior but keep quotes
+                let inner = String(term.dropFirst().dropLast())
+                let clean = sanitizeFTSWord(inner)
+                return clean.isEmpty ? "" : "\"\(clean)\""
+            } else {
+                return sanitizeFTSWord(term)
+            }
+        }.filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    private func sanitizeFTSWord(_ word: String) -> String {
+        var s = word
         for ch in ["*", "(", ")", ":", "\"", "-", "'"] {
             s = s.replacingOccurrences(of: ch, with: " ")
         }

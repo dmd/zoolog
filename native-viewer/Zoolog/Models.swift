@@ -79,6 +79,42 @@ enum CategoryColor {
     }
 }
 
+/// Parses a search string respecting quoted phrases.
+/// `hello "big world" foo` → `["hello", "\"big world\"", "foo"]`
+func parseSearchTerms(_ query: String) -> [String] {
+    var terms: [String] = []
+    var current = ""
+    var inQuote = false
+    for ch in query {
+        if ch == "\"" {
+            if inQuote {
+                // Closing quote — emit the quoted phrase (with quotes)
+                terms.append("\"\(current)\"")
+                current = ""
+                inQuote = false
+            } else {
+                // Opening quote — flush any accumulated unquoted text first
+                let words = current.split(separator: " ").map(String.init)
+                terms.append(contentsOf: words)
+                current = ""
+                inQuote = true
+            }
+        } else {
+            current.append(ch)
+        }
+    }
+    // Flush remainder
+    if inQuote {
+        // Unclosed quote — treat words as individual terms
+        let words = current.split(separator: " ").map(String.init)
+        terms.append(contentsOf: words)
+    } else {
+        let words = current.split(separator: " ").map(String.init)
+        terms.append(contentsOf: words)
+    }
+    return terms
+}
+
 extension String {
     var categoryColor: SwiftUI.Color {
         switch self {

@@ -21,7 +21,7 @@ struct ZoologApp: App {
                     .keyboardShortcut("j", modifiers: [])
                 Divider()
                 Button("Focus Search") { store.focusSearch = true }
-                    .keyboardShortcut("/", modifiers: [])
+                    .keyboardShortcut("f", modifiers: .command)
             }
             CommandMenu("View") {
                 Button("Increase Font Size") { store.fontSize = min(store.fontSize + 2, 30) }

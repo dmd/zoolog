@@ -80,6 +80,7 @@ struct MainView: View {
             }
             StatusBar()
         }
+        .onKeyPress("/") { store.focusSearch = true; return .handled }
     }
 }
 
@@ -345,7 +346,13 @@ struct PostDetailPanel: View {
     private var searchTerms: [String] {
         let text = store.searchText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return [] }
-        return text.split(separator: " ").map(String.init)
+        return parseSearchTerms(text).map { term in
+            // Strip quotes for highlighting — we want to highlight the phrase contents
+            if term.hasPrefix("\"") && term.hasSuffix("\"") {
+                return String(term.dropFirst().dropLast())
+            }
+            return term
+        }
     }
 }
 

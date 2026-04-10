@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 import Photos
+import CryptoKit
 
 @MainActor
 final class PostStore: ObservableObject {
@@ -230,6 +231,7 @@ final class PostStore: ObservableObject {
         options.resizeMode = .exact
 
         var images: [NSImage] = []
+        var seenHashes: Set<String> = []
         let targetSize = CGSize(width: 1000, height: 1000)
 
         assets.enumerateObjects { asset, _, _ in
@@ -240,7 +242,13 @@ final class PostStore: ObservableObject {
                 options: options
             ) { image, _ in
                 if let image = image {
-                    images.append(NSImage(cgImage: image.cgImage(forProposedRect: nil, context: nil, hints: nil)!, size: image.size))
+                    let nsImage = NSImage(cgImage: image.cgImage(forProposedRect: nil, context: nil, hints: nil)!, size: image.size)
+                    if let tiff = nsImage.tiffRepresentation {
+                        let hash = SHA256.hash(data: tiff).compactMap { String(format: "%02x", $0) }.joined()
+                        if seenHashes.insert(hash).inserted {
+                            images.append(nsImage)
+                        }
+                    }
                 }
             }
         }

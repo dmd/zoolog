@@ -37,6 +37,7 @@ enum Category: String, CaseIterable, Identifiable {
     case a = "A"
     case d = "D"
     case j = "J"
+    case g = "G"
     case ahns = "AHNS"
 
     var id: String { rawValue }
@@ -49,6 +50,7 @@ enum Category: String, CaseIterable, Identifiable {
         case .d: return "D"
         case .ahns: return "AHNS"
         case .j: return "Uncle J"
+        case .g: return "Grandpa"
         }
     }
 
@@ -60,12 +62,13 @@ enum Category: String, CaseIterable, Identifiable {
         case .d: return .cyan
         case .ahns: return .purple
         case .j: return .orange
+        case .g: return .red
         }
     }
 }
 
 enum CategoryColor {
-    case gray, blue, green, cyan, purple, orange
+    case gray, blue, green, cyan, purple, orange, red
 
     var swiftUI: SwiftUI.Color {
         switch self {
@@ -75,6 +78,7 @@ enum CategoryColor {
         case .cyan: return .cyan
         case .purple: return .purple
         case .orange: return .orange
+        case .red: return .red
         }
     }
 }
@@ -122,6 +126,7 @@ extension String {
         case "D": return .cyan
         case "AHNS": return .purple
         case "J": return .orange
+        case "G": return .red
         case "US": return .blue
         default: return .secondary
         }

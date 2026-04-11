@@ -539,7 +539,7 @@ struct StatusBar: View {
 
             Spacer()
 
-            ForEach(["A", "D", "J", "AHNS"], id: \.self) { (cat: String) in
+            ForEach(["A", "D", "J", "G", "AHNS"], id: \.self) { (cat: String) in
                 if let count = store.stats.categories[cat] {
                     HStack(spacing: 4) {
                         Circle()

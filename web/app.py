@@ -166,6 +166,8 @@ def extract_post_info(filename, content):
         category = "AHNS"
     elif "J" in filename:
         category = "J"
+    elif "G" in filename:
+        category = "G"
     elif "-D-" in filename:
         category = "D"
     elif "-A-" in filename:
@@ -457,7 +459,7 @@ def api_timeline():
     for row in cursor.fetchall():
         year_month = f"{row['year']}-{row['month']:02d}"
         if year_month not in timeline_data:
-            timeline_data[year_month] = {'A': 0, 'D': 0, 'AHNS': 0, 'J': 0, 'US': 0, 'total': 0}
+            timeline_data[year_month] = {'A': 0, 'D': 0, 'AHNS': 0, 'J': 0, 'G': 0, 'US': 0, 'total': 0}
         
         category = row['category']
         count = row['count']

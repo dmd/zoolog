@@ -75,6 +75,8 @@ def _extract(filename: str, content: str) -> dict | None:
         cat = "AHNS"
     elif "J" in filename:
         cat = "J"
+    elif "G" in filename:
+        cat = "G"
     elif "-D-" in filename:
         cat = "D"
     elif "-A-" in filename:
@@ -250,8 +252,8 @@ def get_stats() -> dict:
 # Constants
 # ---------------------------------------------------------------------------
 
-CATEGORY_COLORS = {"A": "green", "D": "cyan", "AHNS": "magenta", "J": "yellow", "US": "blue"}
-CATEGORIES = [("All", ""), ("A+D", "US"), ("A", "A"), ("D", "D"), ("AHNS", "AHNS"), ("Uncle J", "J")]
+CATEGORY_COLORS = {"A": "green", "D": "cyan", "AHNS": "magenta", "J": "yellow", "G": "red", "US": "blue"}
+CATEGORIES = [("All", ""), ("A+D", "US"), ("A", "A"), ("D", "D"), ("AHNS", "AHNS"), ("Uncle J", "J"), ("Grandpa", "G")]
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +374,7 @@ class ZoologApp(App):
         stats = get_stats()
         cats = stats["cats"]
         parts = []
-        for c in ["A", "D", "AHNS", "J"]:
+        for c in ["A", "D", "AHNS", "J", "G"]:
             if c in cats:
                 color = CATEGORY_COLORS[c]
                 parts.append(f"[{color}]{c}:{cats[c]}[/{color}]")

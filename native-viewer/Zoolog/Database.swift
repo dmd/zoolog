@@ -343,6 +343,7 @@ private func extractPostInfo(filename: String, content: String) -> PostInfo? {
     var cat = "US"
     if filename.contains("AHNS") { cat = "AHNS" }
     else if filename.contains("J") { cat = "J" }
+    else if filename.contains("G") { cat = "G" }
     else if filename.contains("-D-") { cat = "D" }
     else if filename.contains("-A-") { cat = "A" }
 

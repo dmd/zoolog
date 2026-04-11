@@ -33,6 +33,7 @@ create_period_text() {
     case "$category" in
         "US") files=$(find ../posts -name "*-D-*.txt" -o -name "*-A-*.txt") ;;
         "J") files=$(find ../posts -name "*J*.txt") ;;
+        "G") files=$(find ../posts -name "*G*.txt") ;;
         "AHNS") files=$(find ../posts -name "*AHNS*.txt") ;;
     esac
     
@@ -53,12 +54,14 @@ create_period_text "AHNS" 2013 2019 &
 create_period_text "US" 2013 2019 &
 # 2020s
 create_period_text "J" 2020 $current_year &
+create_period_text "G" 2020 $current_year &
 create_period_text "US" 2020 $current_year &
 
 # All time
 awk 'FNR==1{print ""}1' ../posts/*AHNS* > AHNS.txt &
 awk 'FNR==1{print ""}1' ../posts/*J* > J.txt &
-awk 'FNR==1{print ""}1' ../posts/!(*AHNS*|*J*) > US.txt &
+awk 'FNR==1{print ""}1' ../posts/*G* > G.txt &
+awk 'FNR==1{print ""}1' ../posts/!(*AHNS*|*J*|*G*) > US.txt &
 
 
 generate_cover "AHNS" "2013 - 2019" "a_ahns" &
@@ -66,6 +69,7 @@ generate_cover "Outer Dibblestan" "" "a_cover" &
 generate_cover "Outer Dibblestan" "2013 - 2019" "a_cover-2013-2019" &
 generate_cover "Outer Dibblestan" "2020 - ${current_year}" "a_cover-2020-${current_year}" &
 generate_cover "Uncle J" "2020 - ${current_year}" "a_unclej" &
+generate_cover "Grandpa" "2020 - ${current_year}" "a_grandpa" &
 
 wait
 echo "Period text files, combined files, and covers generated successfully."
@@ -74,22 +78,24 @@ echo "Period text files, combined files, and covers generated successfully."
 process_file_type "AHNS" &
 process_file_type "US" &
 process_file_type "J" &
+process_file_type "G" &
 process_file_type "J-2020-${current_year}" &
+process_file_type "G-2020-${current_year}" &
 process_file_type "US-2013-2019" &
 process_file_type "US-2020-${current_year}" &
 wait
 
 # Generate decade books
 pdftk a_cover-2013-2019.pdf US-2013-2019.pdf a_ahns.pdf AHNS.pdf cat output book-2013-2019.pdf &
-pdftk a_cover-2020-${current_year}.pdf US-2020-${current_year}.pdf a_unclej.pdf J-2020-${current_year}.pdf cat output book-2020-${current_year}.pdf &
+pdftk a_cover-2020-${current_year}.pdf US-2020-${current_year}.pdf a_unclej.pdf J-2020-${current_year}.pdf a_grandpa.pdf G-2020-${current_year}.pdf cat output book-2020-${current_year}.pdf &
 
 # Generate combined book
-pdftk a_cover.pdf US.pdf a_unclej.pdf J.pdf a_ahns.pdf AHNS.pdf cat output book.pdf &
+pdftk a_cover.pdf US.pdf a_unclej.pdf J.pdf a_grandpa.pdf G.pdf a_ahns.pdf AHNS.pdf cat output book.pdf &
 
 wait
 
 mv book-2013-2019.pdf book-2020-${current_year}.pdf book.pdf ../
-mv AHNS.{html,pdf,txt} J.{html,pdf,txt} US.{html,pdf,txt} ../
+mv AHNS.{html,pdf,txt} J.{html,pdf,txt} G.{html,pdf,txt} US.{html,pdf,txt} ../
 
 # Return to main directory and clean up
 cd ..

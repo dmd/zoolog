@@ -71,8 +71,39 @@ it; it then launches full-screen and works offline.
 
 ### Updating after new entries
 
-1. `./build_data.py` to regenerate `data/posts.json`.
+1. `./build_data.py` to regenerate `data/posts.json` (or just run `../make_omnibus`,
+   which now does this at the end of its run).
 2. Bump `VERSION` in `sw.js` (e.g. `zoolog-v1` → `zoolog-v2`) and redeploy. The new
    service worker re-caches the updated files on next visit. (Without bumping, the
    app still self-updates one load later via stale-while-revalidate, but bumping
    makes the refresh immediate and clean.)
+
+## Persistent hosting (this Mac, over Tailscale)
+
+This repo also runs the app as a tiny always-on server on the owner's Mac, reachable
+from a phone over Tailscale. Two pieces:
+
+- **`serve-daemon.sh`** — serves this directory on `127.0.0.1:8123` (localhost only,
+  not exposed on the LAN) and re-asserts the Tailscale HTTPS proxy. It locates its
+  own directory, so it has no hardcoded paths.
+- **A macOS LaunchAgent** at `~/Library/LaunchAgents/org.dmd.zoolog-pwa.plist` (not in
+  the repo — it's machine-specific and references the absolute project path). It runs
+  `serve-daemon.sh` at login with `RunAtLoad` + `KeepAlive`, so it starts on boot and
+  restarts if it ever dies. Logs go to `~/Library/Logs/zoolog-pwa.log`.
+
+The public entry point is the Tailscale HTTPS URL, e.g.
+`https://<machine>.<tailnet>.ts.net/`. Because Tailscale provides a trusted cert, the
+PWA's secure-context features (service worker, install, offline) all work on the phone.
+
+Manage it:
+
+```bash
+launchctl bootout   gui/$(id -u)/org.dmd.zoolog-pwa                       # stop + disable
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.dmd.zoolog-pwa.plist  # enable
+launchctl kickstart -k gui/$(id -u)/org.dmd.zoolog-pwa                    # restart now
+tailscale serve --https=443 off                                          # drop public proxy
+```
+
+> If you move the project folder, update the path inside the plist. `tailscaled`
+> persists its own `serve` config across reboots; `serve-daemon.sh` re-asserts it
+> anyway as a safety net.

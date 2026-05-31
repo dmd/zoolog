@@ -120,6 +120,23 @@ Removes all generated files and directories.
 
 ## Viewers
 
+### Mobile PWA
+
+The `pwa/` directory contains a mobile-first, installable Progressive Web App for
+reading and searching the journal. It is a static site (no backend): a build
+script bundles the posts into JSON, and the app does client-side full-text search.
+Works fully offline once loaded and deploys to any static host.
+
+```bash
+cd pwa
+./build_data.py                 # bundle posts/ -> data/posts.json
+python3 -m http.server 8123     # then open http://localhost:8123
+```
+
+Features: warm book-like reader with prose re-flow, full-text search with prefix
+and quoted-phrase matching and highlighting, author/date filtering, dark mode, and
+"Add to Home Screen" install. See `pwa/README.md`.
+
 ### Web Interface
 
 The `web/` directory contains a Flask-based web interface for browsing and searching journal entries.

@@ -103,4 +103,8 @@ rm -rf build
 
 ./make_monthlies
 
+# Rebuild the PWA data bundle (pwa/data/posts.json) from the posts.
+echo "Building PWA data bundle..."
+./pwa/build_data.py
+
 echo "Books generated successfully."

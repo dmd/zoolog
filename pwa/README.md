@@ -71,12 +71,18 @@ it; it then launches full-screen and works offline.
 
 ### Updating after new entries
 
-1. `./build_data.py` to regenerate `data/posts.json` (or just run `../make_omnibus`,
-   which now does this at the end of its run).
-2. Bump `VERSION` in `sw.js` (e.g. `zoolog-v1` → `zoolog-v2`) and redeploy. The new
-   service worker re-caches the updated files on next visit. (Without bumping, the
-   app still self-updates one load later via stale-while-revalidate, but bumping
-   makes the refresh immediate and clean.)
+Just rebuild the data — `./build_data.py` (or run `../make_omnibus`, which does it
+at the end). The service worker treats `data/` as **network-first**, so the new
+bundle shows up the next time the app is loaded while online (a cheap `304` when
+unchanged, a full fetch when rebuilt); the cached copy is only used offline. No
+version bump needed for content changes.
+
+### Updating the app itself (HTML/CSS/JS)
+
+Bump `VERSION` in `sw.js` (e.g. `zoolog-v5` → `zoolog-v6`). The new service worker
+installs, re-caches the shell, and takes over; reload once or twice to land on it.
+(The shell is stale-while-revalidate, so it also self-heals one load later even
+without a bump — the version bump just makes it immediate.)
 
 ## Persistent hosting (this Mac, over Tailscale)
 

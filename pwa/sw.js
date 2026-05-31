@@ -1,5 +1,5 @@
 /* Zoolog service worker — offline app shell + journal data. */
-const VERSION = 'zoolog-v4';
+const VERSION = 'zoolog-v5';
 const SHELL = [
   '.',
   'index.html',
@@ -30,7 +30,26 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Stale-while-revalidate: serve cache immediately, refresh in background.
+  // The journal data is network-first: a rebuilt bundle shows up on the next
+  // reload, and we fall back to the cached copy only when offline.
+  if (url.pathname.includes('/data/')) {
+    event.respondWith(
+      caches.open(VERSION).then(async cache => {
+        try {
+          const res = await fetch(req);
+          if (res && res.status === 200) cache.put(req, res.clone());
+          return res;
+        } catch (e) {
+          const cached = await cache.match(req, { ignoreSearch: true });
+          if (cached) return cached;
+          throw e;
+        }
+      })
+    );
+    return;
+  }
+
+  // App shell is stale-while-revalidate: serve cache immediately, refresh in bg.
   event.respondWith(
     caches.open(VERSION).then(async cache => {
       const cached = await cache.match(req, { ignoreSearch: true });

@@ -532,7 +532,10 @@ async function boot() {
   wireGlobal();
 
   try {
-    const res = await fetch('data/posts.json', { cache: 'force-cache' });
+    // no-cache => always revalidate with the server (cheap 304 when unchanged,
+    // full download when the bundle was rebuilt). The service worker serves the
+    // cached copy when offline.
+    const res = await fetch('data/posts.json', { cache: 'no-cache' });
     ALL = await res.json();
   } catch (err) {
     feedStatus.textContent = 'Could not load the journal data.';

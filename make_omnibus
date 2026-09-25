@@ -40,7 +40,9 @@ create_period_text() {
     # Filter by year
     echo "$files" | while read file; do
         year=${file:9:4}  # Extract year from ../posts/YYYY-MM-DD-...
-        [[ $year -ge $start_year && $year -le $end_year ]] && echo "$file"
+        if [[ $year -ge $start_year && $year -le $end_year ]]; then
+            echo "$file"
+        fi
     done | sort | xargs awk 'FNR==1{print ""}1' > "${filename}.txt"
 }
 
